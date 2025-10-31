@@ -180,8 +180,9 @@ def process_single_file_worker(args):
 def process_batch_from_csv(csv_file, batch_save_path, robot, SMPLX_FOLDER, no_visualize=False, rate_limit=False, use_multithreading=True, num_threads=None):
     global START_ROW, END_ROW
     # 设置数据路径
-    BASE_DATA_PATH = pathlib.Path(__file__).parent.parent.parent / "data" / "locomotion" / "raw"
+    # BASE_DATA_PATH = pathlib.Path(__file__).parent.parent.parent / "data" / "locomotion" / "raw"
     BASE_DATA_PATH = pathlib.Path(__file__).parent.parent.parent / "data" / "locomotion" 
+    BASE_DATA_PATH = pathlib.Path(__file__).parent.parent.parent / "server3_data" / "locomotion" 
     
     # 读取CSV文件
     file_pairs = []
@@ -208,6 +209,7 @@ def process_batch_from_csv(csv_file, batch_save_path, robot, SMPLX_FOLDER, no_vi
                     break
                 index = row[0].strip()
                 relative_path = row[source_path_column_index].strip()
+                # absolute_path = 
                 downsample_factor = int(row[downsample_factor_column_index].strip())
                 if relative_path:
                     npz_path = BASE_DATA_PATH / relative_path #组成绝对路径

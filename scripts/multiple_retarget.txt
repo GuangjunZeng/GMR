@@ -8,7 +8,7 @@ bash
 conda init bash # 1. 先初始化 conda
 source ~/.bashrc  //nano ~/.zshrc
 conda activate gmr # 3. 现在可以正常激活环境了
-python scripts/smplx_to_robot.py --csv_file ../data/locomotion/manifest_raw.csv --batch_save_path ../data/locomotion/robot/ik_based/pkl/   --robot unitree_g1 --no_visualize --num_threads 25 --start_row 6000
+python scripts/smplx_to_robot_batch.py --csv_file ../server3_data/locomotion/manifest_raw.csv --batch_save_path ../server3_data/locomotion/robot/ik_based/pkl/   --robot unitree_g1 --no_visualize --num_threads 1 --start_row 0  --end_row 5
 tmux attach -t smplx_robot #重新打开这个会话
 tmux kill-session -t smplx_robot
 tmux ls
