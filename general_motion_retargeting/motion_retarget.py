@@ -24,48 +24,54 @@ class GeneralMotionRetargeting:
         # load the robot model
         self.xml_file = str(ROBOT_XML_DICT[tgt_robot])
         if verbose:
-            print("Use robot model: ", self.xml_file)
+            # print("Use robot model: ", self.xml_file)
+            pass
         self.model = mj.MjModel.from_xml_path(self.xml_file)
         
         # Print DoF names in order
-        print("[GMR] Robot Degrees of Freedom (DoF) names and their order:")
+        # print("[GMR] Robot Degrees of Freedom (DoF) names and their order:")
         self.robot_dof_names = {}
         for i in range(self.model.nv):  # 'nv' is the number of DoFs
             dof_name = mj.mj_id2name(self.model, mj.mjtObj.mjOBJ_JOINT, self.model.dof_jntid[i])
             self.robot_dof_names[dof_name] = i
             if verbose:
-                print(f"DoF {i}: {dof_name}")
+                # print(f"DoF {i}: {dof_name}")
+                pass
             
             
-        print("[GMR] Robot Body names and their IDs:")
+        # print("[GMR] Robot Body names and their IDs:")
         self.robot_body_names = {}
         for i in range(self.model.nbody):  # 'nbody' is the number of bodies
             body_name = mj.mj_id2name(self.model, mj.mjtObj.mjOBJ_BODY, i)
             self.robot_body_names[body_name] = i
             if verbose:
-                print(f"Body ID {i}: {body_name}")
+                # print(f"Body ID {i}: {body_name}")
+                pass
         
-        print("[GMR] Robot Motor (Actuator) names and their IDs:")
+        # print("[GMR] Robot Motor (Actuator) names and their IDs:")
         self.robot_motor_names = {}
         for i in range(self.model.nu):  # 'nu' is the number of actuators (motors)
             motor_name = mj.mj_id2name(self.model, mj.mjtObj.mjOBJ_ACTUATOR, i)
             self.robot_motor_names[motor_name] = i
             if verbose:
-                print(f"Motor ID {i}: {motor_name}")
+                # print(f"Motor ID {i}: {motor_name}")
+                pass
 
         # Load the IK config
         with open(IK_CONFIG_DICT[src_human][tgt_robot]) as f:
             ik_config = json.load(f)
         if verbose:
-            print("Use IK config: ", IK_CONFIG_DICT[src_human][tgt_robot])
+            # print("Use IK config: ", IK_CONFIG_DICT[src_human][tgt_robot])
+            pass
         
         # compute the scale ratio based on given human height and the assumption in the IK config
         if actual_human_height is not None:
+            #得到放缩比例
             ratio = actual_human_height / ik_config["human_height_assumption"]
         else:
             ratio = 1.0
             
-        # adjust the human scale table
+        #? adjust the human scale table
         for key in ik_config["human_scale_table"].keys():
             ik_config["human_scale_table"][key] = ik_config["human_scale_table"][key] * ratio
     
@@ -103,6 +109,8 @@ class GeneralMotionRetargeting:
         self.setup_retarget_configuration()
         
         self.ground_offset = 0.0
+        #！ one-time flag to mimic PHC-style constant ground alignment using the first frame
+        self._ground_offset_initialized = False
 
     def setup_retarget_configuration(self):
         self.configuration = mink.Configuration(self.model)
@@ -152,8 +160,26 @@ class GeneralMotionRetargeting:
         human_data = self.to_numpy(human_data)
         human_data = self.scale_human_data(human_data, self.human_root_name, self.human_scale_table)
         human_data = self.offset_human_data(human_data, self.pos_offsets1, self.rot_offsets1)
-        human_data = self.apply_ground_offset(human_data)
-        if offset_to_ground:
+
+        #! PHC-style: compute a constant ground offset from the first frame (once)
+        if not self._ground_offset_initialized:
+            try:
+                min_z = np.inf
+                for body_name in human_data.keys(): #human_data是当前帧的人体数据，但是但由于 _ground_offset_initialized 标志的作用，地面偏移的计算只会在第一次调用 update_targets 时触发，所以实际上用的是"第一次传入的那一帧"（通常就是第一帧）。
+                    pos, _ = human_data[body_name]
+                    if pos[2] < min_z:
+                        min_z = pos[2]
+                # set ground offset so that the lowest point becomes z=0 in the first frame
+                self.set_ground_offset(float(min_z))
+            except Exception:
+                print("Warning: Failed to compute constant ground offset.")
+                # fallback: keep default ground_offset
+                pass
+            self._ground_offset_initialized = True
+        human_data = self.apply_ground_offset(human_data) #所有帧z轴都都下平移一个常量
+
+
+        if offset_to_ground: #offset_to_ground默认是false
             human_data = self.offset_human_data_to_ground(human_data)
         self.scaled_human_data = human_data
 
@@ -245,8 +271,8 @@ class GeneralMotionRetargeting:
         human_data_local = {}
         root_pos, root_quat = human_data[human_root_name]
         
-        # scale root
-        scaled_root_pos = human_scale_table[human_root_name] * root_pos
+        #! keep root position in world unchanged (PHC-style): do NOT scale root
+        scaled_root_pos = root_pos
         
         # scale other body parts in local frame
         for body_name in human_data.keys():
@@ -306,8 +332,9 @@ class GeneralMotionRetargeting:
     def set_ground_offset(self, ground_offset):
         self.ground_offset = ground_offset
 
-    def apply_ground_offset(self, human_data):
+    def apply_ground_offset(self, human_data): #human_data是一帧的数据
         for body_name in human_data.keys():
             pos, quat = human_data[body_name]
-            human_data[body_name][0] = pos - np.array([0, 0, self.ground_offset])
+            #human_data[body_name][0]是把关节中的position这个三元数组提取出来
+            human_data[body_name][0] = pos - np.array([0, 0, self.ground_offset]) 
         return human_data
