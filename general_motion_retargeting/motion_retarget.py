@@ -65,6 +65,7 @@ class GeneralMotionRetargeting:
             pass
         
         # high priority: compute the scale ratio based on given human height and the assumption in the IK config
+        # warning
         if actual_human_height is not None:
             #得到放缩比例
             ratio = actual_human_height / ik_config["human_height_assumption"] #what is the "human_height_assumption" in the IK config?
@@ -99,19 +100,19 @@ class GeneralMotionRetargeting:
         if use_velocity_limit:
             VELOCITY_LIMITS = {k: 3*np.pi for k in self.robot_motor_names.keys()}
             self.ik_limits.append(mink.VelocityLimit(self.model, VELOCITY_LIMITS)) 
-            
         self.setup_retarget_configuration()
-        
         self.ground_offset = 0.0
         #！ one-time flag to mimic PHC-style constant ground alignment using the first frame
         self._ground_offset_initialized = False
 
+
+    # high priority: set the configuration parameters for motion retargeting.
     def setup_retarget_configuration(self):
-        self.configuration = mink.Configuration(self.model)
-    
-        self.tasks1 = []
-        self.tasks2 = []
-        
+        # create a "robot state container", and the IK solver will continuously update the joint angles in this container
+        self.configuration = mink.Configuration(self.model) 
+        self.tasks1 = []  #Phase I IK Task List (Coarse Adjustment)
+        self.tasks2 = []  #Phase II IK Task List (Fine-Tuning)
+        #both ik_match_table1 and ik_match_table2 are derived from smplx_to_g1.json
         for frame_name, entry in self.ik_match_table1.items():
             body_name, pos_weight, rot_weight, pos_offset, rot_offset = entry
             if pos_weight != 0 or rot_weight != 0:
