@@ -12,7 +12,8 @@ def load_smpl_file(smpl_file):
     return smpl_data
 
 def load_smplx_file(smplx_file, smplx_body_model_path):
-    smplx_data = np.load(smplx_file, allow_pickle=True)
+    # smplx_data is the whole content of a single npz file of smplx human motion sequence
+    smplx_data = np.load(smplx_file, allow_pickle=True) 
     body_model = smplx.create(
         smplx_body_model_path,
         "smplx",
@@ -39,6 +40,7 @@ def load_smplx_file(smplx_file, smplx_body_model_path):
         return_full_pose=True,
     )
     
+    # high priority: get human height from betas
     if len(smplx_data["betas"].shape)==1:
         human_height = 1.66 + 0.1 * smplx_data["betas"][0]
     else:

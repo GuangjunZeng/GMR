@@ -300,17 +300,20 @@ def process_batch_from_csv(csv_file, batch_save_path, robot, SMPLX_FOLDER, no_vi
     print(f"\nprocessing completed: successful {summary['successful']}/{summary['total_files']}, failed {summary['failed']}")
     print(f"time: {summary['total_time']/60:.1f} minutes")
 
+
+# note: whole process of retargeting signle npz file  
 def process_single_npz_file(smplx_file_path, output_path, robot, SMPLX_FOLDER, no_visualize=False, rate_limit=False, downsample_factor=4):
     """
     process a single NPZ file 
     """
     try:
-        # Load SMPLX trajectory
+        # high priority, smplx_data: 
         smplx_data, body_model, smplx_output, actual_human_height = load_smplx_file(
             smplx_file_path, SMPLX_FOLDER
         )
         
         #自己手写的降采样方式
+        #? it seems that we need to downsampl in reverse of retargeting process
         smplx_data_frames, aligned_fps = manual_downsample_smplx_data(
             smplx_data, body_model, smplx_output, down_sample=downsample_factor
         )
@@ -322,6 +325,8 @@ def process_single_npz_file(smplx_file_path, output_path, robot, SMPLX_FOLDER, n
             tgt_robot=robot,
         )
         
+
+        #low priority: visualize
         if not no_visualize:
             robot_motion_viewer = RobotMotionViewer(robot_type=robot,
                                                     motion_fps=aligned_fps,
@@ -332,18 +337,19 @@ def process_single_npz_file(smplx_file_path, output_path, robot, SMPLX_FOLDER, n
             robot_motion_viewer = None
         
 
+        #? it seems that we need to downsampl in reverse of retargeting process
         curr_frame = 0
-        # FPS measurement variables
         fps_counter = 0
         fps_start_time = time.time()
         fps_display_interval = 2.0  # Display FPS every 2 seconds
         
+        #low priority
         save_dir = os.path.dirname(output_path)
         if save_dir:  # Only create directory if it's not empty
             os.makedirs(save_dir, exist_ok=True)
-        qpos_list = []
-        
 
+
+        qpos_list = []
         i = 0
         while True:
             
@@ -364,7 +370,7 @@ def process_single_npz_file(smplx_file_path, output_path, robot, SMPLX_FOLDER, n
             # retarget
             qpos = retarget.retarget(smplx_data)
             
-            # visualize
+            #low priority: visualize
             if robot_motion_viewer:
                 robot_motion_viewer.step(
                     root_pos=qpos[:3],
@@ -412,6 +418,8 @@ def process_single_npz_file(smplx_file_path, output_path, robot, SMPLX_FOLDER, n
     except Exception as e:
         print(f"❌ Error processing {smplx_file_path}: {e}")
         return False
+
+
 
 if __name__ == "__main__":
     

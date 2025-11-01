@@ -5,13 +5,19 @@ import argparse
 import numpy as np
 import os
 
+
+# python scripts/view_npz.py  assets/body_models/smplx/SMPLX_MALE.npz
+# python scripts/view_npz.py  ../server3_data/locomotion/reference/000001.npz
+# python scripts/view_npz.py  ../server3_data/locomotion/reference/000002.npz
+# python scripts/view_npz.py  ../server3_data/locomotion/reference/010220.npz
+
 def view_npz_data(npz_path, show_preview=True, save_csv=False):
     """查看NPZ文件内容"""
     print(f"🔍 查看NPZ文件: {npz_path}")
     print("="*60)
     
     # 加载NPZ文件
-    data = np.load(npz_path)
+    data = np.load(npz_path, allow_pickle=True)
     
     print(f"📁 文件包含的键: {list(data.keys())}")
     print()
@@ -23,15 +29,41 @@ def view_npz_data(npz_path, show_preview=True, save_csv=False):
         if isinstance(value, np.ndarray):
             print(f"   形状: {value.shape}")
             print(f"   数据类型: {value.dtype}")
-            print(f"   数值范围: [{np.min(value):.6f}, {np.max(value):.6f}]")
+
+            if key == 'gender':
+                if value.size == 1:
+                    print(f"   值: {value.item()}")
+                else:
+                    print(f"   值列表: {value.tolist()}")
+                print()
+                continue
             
-            if show_preview and value.size > 0:
-                if value.ndim == 1:
-                    print(f"   前5个值: {value[:5]}")
-                elif value.ndim == 2:
-                    print(f"   前3行3列:\n{value[:3, :3]}")
-                elif value.ndim == 3:
-                    print(f"   形状预览: {value.shape}")
+            # 处理对象类型（如字典、列表等）
+            if value.dtype == object:
+                print(f"   类型: 对象 (object)")
+                if value.size == 1:
+                    obj = value.item()
+                    if isinstance(obj, dict):
+                        print(f"   字典内容: {obj}")
+                    else:
+                        print(f"   值: {obj}")
+                elif value.size > 0 and show_preview:
+                    print(f"   前几个值: {value.flatten()[:5]}")
+            else:
+                # 数值类型才计算范围
+                try:
+                    print(f"   数值范围: [{np.min(value):.6f}, {np.max(value):.6f}]")
+                except Exception:
+                    print(f"   无法计算数值范围")
+
+                if key == 'betas':
+                    if value.size > 0:
+                        pass
+                        # print(f"   全部数值: {np.array2string(value, precision=6, separator=', ')}")
+                if show_preview and value.size > 0:
+                    if value.ndim == 1:
+                        print(f" 全部数值 : {value[:value.size]}")
+    
             
             # 如果是关节名称
             if key == 'joint_names':
