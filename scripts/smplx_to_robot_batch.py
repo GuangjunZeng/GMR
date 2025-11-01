@@ -307,10 +307,10 @@ def process_single_npz_file(smplx_file_path, output_path, robot, SMPLX_FOLDER, n
     process a single NPZ file 
     """
     try:
-        # high priority, smplx_data: 
+        # high priority:::  smplx_data: used in retargeting process, 
         smplx_data, body_model, smplx_output, actual_human_height = load_smplx_file(
             smplx_file_path, SMPLX_FOLDER
-        )
+        ) #load_smplx_file() is in /general_motion_retargeting/utils/smpl.py 
         
         #自己手写的降采样方式
         #? it seems that we need to downsampl in reverse of retargeting process
@@ -318,15 +318,15 @@ def process_single_npz_file(smplx_file_path, output_path, robot, SMPLX_FOLDER, n
             smplx_data, body_model, smplx_output, down_sample=downsample_factor
         )
    
-        # Initialize the retargeting system
+        # high priority: initialize the retargeting system
         retarget = GMR(
             actual_human_height=actual_human_height,
             src_human="smplx",
             tgt_robot=robot,
-        )
+        ) #GMR is the class "GeneralMotionRetargeting" from general_motion_retargeting  in /general_motion_retargeting/motion_retarget.py
         
 
-        #low priority: visualize
+        # low priority: visualize
         if not no_visualize:
             robot_motion_viewer = RobotMotionViewer(robot_type=robot,
                                                     motion_fps=aligned_fps,
@@ -335,27 +335,24 @@ def process_single_npz_file(smplx_file_path, output_path, robot, SMPLX_FOLDER, n
                                                     video_path=f"videos/{robot}_{os.path.basename(smplx_file_path).split('.')[0]}.mp4",)
         else:
             robot_motion_viewer = None
-        
-
-        #? it seems that we need to downsampl in reverse of retargeting process
         curr_frame = 0
         fps_counter = 0
         fps_start_time = time.time()
         fps_display_interval = 2.0  # Display FPS every 2 seconds
+
         
-        #low priority
+        #medium priority
         save_dir = os.path.dirname(output_path)
         if save_dir:  # Only create directory if it's not empty
             os.makedirs(save_dir, exist_ok=True)
 
 
+        # high priority: doing retargeting frame by frame
         qpos_list = []
         i = 0
         while True:
-            
             if i >= len(smplx_data_frames): #完成所有帧的处理
                 break
-            
             # FPS measurement
             fps_counter += 1
             current_time = time.time()
@@ -364,13 +361,16 @@ def process_single_npz_file(smplx_file_path, output_path, robot, SMPLX_FOLDER, n
                 # print(f"Actual rendering FPS: {actual_fps:.2f}")
                 fps_counter = 0
                 fps_start_time = current_time
-            
             # Update task targets.
             smplx_data = smplx_data_frames[i]
             # retarget
             qpos = retarget.retarget(smplx_data)
-            
-            #low priority: visualize
+            qpos_list.append(qpos) #add processed qpos (a frame) to qpos_list
+            i += 1
+
+
+
+            # low priority: visualize
             if robot_motion_viewer:
                 robot_motion_viewer.step(
                     root_pos=qpos[:3],
@@ -383,9 +383,8 @@ def process_single_npz_file(smplx_file_path, output_path, robot, SMPLX_FOLDER, n
                     rate_limit=rate_limit,
                 )
 
-            qpos_list.append(qpos)
-            i += 1
-                
+
+        # high priority: save the retargeted robot motion data to pkl file
         import pickle
         root_pos = np.array([qpos[:3] for qpos in qpos_list])
         # save from wxyz to xyzw
@@ -393,11 +392,9 @@ def process_single_npz_file(smplx_file_path, output_path, robot, SMPLX_FOLDER, n
         dof_pos = np.array([qpos[7:] for qpos in qpos_list]) #除了root关节之外的自由度
         local_body_pos = None
         body_names = None
-        
         # Print DOF names and values
         print_dof_info(retarget, dof_pos, root_pos, root_rot, local_body_pos, body_names, qpos_list)
-        
-        #! 还未修改适配phc pkl文件格式
+        # high priority: save the retargeted robot motion data to pkl file
         motion_data = {
             "fps": aligned_fps,
             "root_pos": root_pos,
@@ -410,6 +407,8 @@ def process_single_npz_file(smplx_file_path, output_path, robot, SMPLX_FOLDER, n
             pickle.dump(motion_data, f)
         # print(f"Saved to {output_path}")
             
+
+        #low priority: visualize        
         if robot_motion_viewer:
             robot_motion_viewer.close()
         

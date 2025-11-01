@@ -12,23 +12,25 @@ class GeneralMotionRetargeting:
     """
     def __init__(
         self,
-        src_human: str,
-        tgt_robot: str,
+        src_human: str,  #Input human motion data format: "smplx", "bvh_lafan1", "bvh_nokov", "fbx", "fbx_offline"
+        tgt_robot: str,  #robot option: g1, h1, ....
         actual_human_height: float = None,
-        solver: str="daqp", # change from "quadprog" to "daqp".
-        damping: float=5e-1, # change from 1e-1 to 1e-2.
-        verbose: bool=True,
-        use_velocity_limit: bool=False,
+        solver: str="daqp", #IK solver type: change from "quadprog" to "daqp". (影响性能)
+        damping: float=5e-1, #IK damping coefficient: change from 1e-1 to 1e-2. (影响稳定性)
+        verbose: bool=True,  #Whether to print debug information
+        use_velocity_limit: bool=False, #Whether to limit joint speed
     ) -> None:
 
-        # load the robot model
+
+        # high priority: load the robot model 
         self.xml_file = str(ROBOT_XML_DICT[tgt_robot])
         if verbose:
             # print("Use robot model: ", self.xml_file)
             pass
         self.model = mj.MjModel.from_xml_path(self.xml_file)
         
-        # Print DoF names in order
+
+        # low priority: print DoF names in order
         # print("[GMR] Robot Degrees of Freedom (DoF) names and their order:")
         self.robot_dof_names = {}
         for i in range(self.model.nv):  # 'nv' is the number of DoFs
@@ -37,9 +39,7 @@ class GeneralMotionRetargeting:
             if verbose:
                 # print(f"DoF {i}: {dof_name}")
                 pass
-            
-            
-        # print("[GMR] Robot Body names and their IDs:")
+        # low priority: print("[GMR] Robot Body names and their IDs:")
         self.robot_body_names = {}
         for i in range(self.model.nbody):  # 'nbody' is the number of bodies
             body_name = mj.mj_id2name(self.model, mj.mjtObj.mjOBJ_BODY, i)
@@ -47,8 +47,7 @@ class GeneralMotionRetargeting:
             if verbose:
                 # print(f"Body ID {i}: {body_name}")
                 pass
-        
-        # print("[GMR] Robot Motor (Actuator) names and their IDs:")
+        # low priority: print("[GMR] Robot Motor (Actuator) names and their IDs:")
         self.robot_motor_names = {}
         for i in range(self.model.nu):  # 'nu' is the number of actuators (motors)
             motor_name = mj.mj_id2name(self.model, mj.mjtObj.mjOBJ_ACTUATOR, i)
@@ -57,26 +56,26 @@ class GeneralMotionRetargeting:
                 # print(f"Motor ID {i}: {motor_name}")
                 pass
 
-        # Load the IK config
+
+        # high priority: Load the IK config
         with open(IK_CONFIG_DICT[src_human][tgt_robot]) as f:
             ik_config = json.load(f)
         if verbose:
             # print("Use IK config: ", IK_CONFIG_DICT[src_human][tgt_robot])
             pass
         
-        # compute the scale ratio based on given human height and the assumption in the IK config
+        # high priority: compute the scale ratio based on given human height and the assumption in the IK config
         if actual_human_height is not None:
             #得到放缩比例
-            ratio = actual_human_height / ik_config["human_height_assumption"]
+            ratio = actual_human_height / ik_config["human_height_assumption"] #what is the "human_height_assumption" in the IK config?
         else:
             ratio = 1.0
-            
-        #? adjust the human scale table
+        # Apply the height ratio to the scaling factor of each body part
         for key in ik_config["human_scale_table"].keys():
             ik_config["human_scale_table"][key] = ik_config["human_scale_table"][key] * ratio
     
 
-        # used for retargeting
+        # high priority: used for retargeting
         self.ik_match_table1 = ik_config["ik_match_table1"]
         self.ik_match_table2 = ik_config["ik_match_table2"]
         self.human_root_name = ik_config["human_root_name"]
@@ -85,22 +84,17 @@ class GeneralMotionRetargeting:
         self.use_ik_match_table2 = ik_config["use_ik_match_table2"]
         self.human_scale_table = ik_config["human_scale_table"]
         self.ground = ik_config["ground_height"] * np.array([0, 0, 1])
-
         self.max_iter = 10
-
         self.solver = solver
         self.damping = damping
-
         self.human_body_to_task1 = {}
         self.human_body_to_task2 = {}
         self.pos_offsets1 = {}
         self.rot_offsets1 = {}
         self.pos_offsets2 = {}
         self.rot_offsets2 = {}
-
         self.task_errors1 = {}
         self.task_errors2 = {}
-
         self.ik_limits = [mink.ConfigurationLimit(self.model)]
         if use_velocity_limit:
             VELOCITY_LIMITS = {k: 3*np.pi for k in self.robot_motor_names.keys()}
