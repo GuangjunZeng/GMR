@@ -151,7 +151,7 @@ class GeneralMotionRetargeting:
                 self.tasks2.append(task)
                 self.task_errors2[task] = []
 
-  
+    # high priority: using scale and offset to compute target pose of every joint of robot, and update the (IK)task targets.
     def update_targets(self, human_data, offset_to_ground=False):
         human_data = self.to_numpy(human_data) #ensure that all data is in NumPy array format
         # scale the human data in the Global Coordinate System
@@ -179,7 +179,7 @@ class GeneralMotionRetargeting:
 
         if offset_to_ground: #offset_to_ground默认是false
             human_data = self.offset_human_data_to_ground(human_data)
-            
+
         # All scale and offset operations completed, saved to self.scaled_human_data
         self.scaled_human_data = human_data
 
@@ -188,6 +188,9 @@ class GeneralMotionRetargeting:
                 task = self.human_body_to_task1[body_name]
                 pos, rot = human_data[body_name]
                 task.set_target(mink.SE3.from_rotation_and_translation(mink.SO3(rot), pos))
+                #mink.SO3(rot):将四元数 rot = [w, x, y, z] 转换为 SO(3) 旋转对象
+                #mink.SE3.from_rotation_and_translation(...): 组合旋转和平移，创建完整的 6D 位姿（pose）
+                #task.set_target(transform):将目标位姿存储在task中, IK 求解器会尝试调整机器人关节角度，使机器人的关节达到这个目标
         
         if self.use_ik_match_table2:
             for body_name in self.human_body_to_task2.keys():
@@ -196,6 +199,7 @@ class GeneralMotionRetargeting:
                 task.set_target(mink.SE3.from_rotation_and_translation(mink.SO3(rot), pos))
             
 
+    # high priority: solve the IK problem using the task targets gotten in update_targets().
     # notice: "human_data" is the "smplx_data" in smplx_to_robot_batch.py
     def retarget(self, human_data, offset_to_ground=False):
         # Update the task targets
