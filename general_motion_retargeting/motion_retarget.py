@@ -116,6 +116,7 @@ class GeneralMotionRetargeting:
         for frame_name, entry in self.ik_match_table1.items():
             body_name, pos_weight, rot_weight, pos_offset, rot_offset = entry
             if pos_weight != 0 or rot_weight != 0:
+                # create a task for every joint of robot
                 task = mink.FrameTask(
                     frame_name=frame_name,
                     frame_type="body",
@@ -123,8 +124,9 @@ class GeneralMotionRetargeting:
                     orientation_cost=rot_weight,
                     lm_damping=1,
                 )
-                self.human_body_to_task1[body_name] = task
-                self.pos_offsets1[body_name] = np.array(pos_offset) - self.ground
+                #establish the mapping relationship from "human joint names" to "robot IK tasks"
+                self.human_body_to_task1[body_name] = task  #key is the human body name, value is the robot IK task (a task is for a joint of robot)
+                self.pos_offsets1[body_name] = np.array(pos_offset) - self.ground #将偏移量从"相对于地面"转换为"相对于世界坐标系原点"
                 self.rot_offsets1[body_name] = R.from_quat(
                     rot_offset, scalar_first=True
                 )
