@@ -307,10 +307,12 @@ def process_single_npz_file(smplx_file_path, output_path, robot, SMPLX_FOLDER, n
     process a single NPZ file 
     """
     try:
-        # high priority:::  smplx_data: used in retargeting process, 
+        # high priority:::  smplx_data: used in retargeting process
+        # notice: smplx_data 包含 reference human data (npz file)的所有信息
         smplx_data, body_model, smplx_output, actual_human_height = load_smplx_file(
             smplx_file_path, SMPLX_FOLDER
         ) #load_smplx_file() is in /general_motion_retargeting/utils/smpl.py 
+        
         
         #自己手写的降采样方式
         #? it seems that we need to downsampl in reverse of retargeting process
