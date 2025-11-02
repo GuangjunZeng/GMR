@@ -129,8 +129,8 @@ class GeneralMotionRetargeting:
                 self.pos_offsets1[body_name] = np.array(pos_offset) - self.ground #将偏移量从"相对于地面"转换为"相对于世界坐标系原点"
                 self.rot_offsets1[body_name] = R.from_quat(
                     rot_offset, scalar_first=True
-                )
-                self.tasks1.append(task)
+                ) #将四元数转换为旋转对象并存储
+                self.tasks1.append(task) 
                 self.task_errors1[task] = []
         
         for frame_name, entry in self.ik_match_table2.items():
@@ -153,9 +153,10 @@ class GeneralMotionRetargeting:
 
   
     def update_targets(self, human_data, offset_to_ground=False):
-        # scale human data in local frame
-        human_data = self.to_numpy(human_data)
+        human_data = self.to_numpy(human_data) #ensure that all data is in NumPy array format
+        # scale the human data in the Global Coordinate System
         human_data = self.scale_human_data(human_data, self.human_root_name, self.human_scale_table)
+        # 
         human_data = self.offset_human_data(human_data, self.pos_offsets1, self.rot_offsets1)
 
         #! PHC-style: compute a constant ground offset from the first frame (once)
@@ -263,6 +264,7 @@ class GeneralMotionRetargeting:
         return human_data
 
 
+    # scale the human data in the Global Coordinate System
     def scale_human_data(self, human_data, human_root_name, human_scale_table):
         
         human_data_local = {}
@@ -292,8 +294,8 @@ class GeneralMotionRetargeting:
         """the pos offsets are applied in the local frame"""
         offset_human_data = {}
         for body_name in human_data.keys():
-            pos, quat = human_data[body_name]
-            offset_human_data[body_name] = [pos, quat]
+            pos, quat = human_data[body_name]           #pos: position of joint; quat: quaternion of joint;
+            offset_human_data[body_name] = [pos, quat]  #
             # apply rotation offset first
             updated_quat = (R.from_quat(quat, scalar_first=True) * rot_offsets[body_name]).as_quat(scalar_first=True)
             offset_human_data[body_name][1] = updated_quat
