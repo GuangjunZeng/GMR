@@ -78,7 +78,9 @@ class GeneralMotionRetargeting:
 
         # high priority: used for retargeting
         self.ik_match_table1 = ik_config["ik_match_table1"]
+        #pelvis, left_hip_roll_link, left_knee_link, left_toe_link, right_hip_roll_link, right_knee_link, right_toe_link, torso_link, left_shoulder_yaw_link, left_elbow_link, left_wrist_yaw_link, right_shoulder_yaw_link, right_elbow_link, right_wrist_yaw_link,  
         self.ik_match_table2 = ik_config["ik_match_table2"]
+        #pelvis, left_hip_roll_link, left_knee_link, left_toe_link, right_hip_roll_link, right_knee_link, right_toe_link, torso_link, left_shoulder_yaw_link, left_elbow_link, left_wrist_yaw_link, right_shoulder_yaw_link, right_elbow_link, right_wrist_yaw_link
         self.human_root_name = ik_config["human_root_name"]
         self.robot_root_name = ik_config["robot_root_name"]
         self.use_ik_match_table1 = ik_config["use_ik_match_table1"]
@@ -130,7 +132,7 @@ class GeneralMotionRetargeting:
                 self.rot_offsets1[body_name] = R.from_quat(
                     rot_offset, scalar_first=True
                 ) #将四元数转换为旋转对象并存储
-                self.tasks1.append(task) 
+                self.tasks1.append(task) #a task is essentially a constraint condition for IK solving
                 self.task_errors1[task] = []
         
         for frame_name, entry in self.ik_match_table2.items():
@@ -209,6 +211,7 @@ class GeneralMotionRetargeting:
             # Solve the IK problem
             curr_error = self.error1()
             dt = self.configuration.model.opt.timestep
+            # notice: 
             vel1 = mink.solve_ik(
                 self.configuration, self.tasks1, dt, self.solver, self.damping, self.ik_limits
             )
@@ -271,7 +274,7 @@ class GeneralMotionRetargeting:
         return human_data
 
 
-    # scale the human data in the Global Coordinate System
+    # high priority: scale the human data in the Global Coordinate System
     def scale_human_data(self, human_data, human_root_name, human_scale_table):
         
         human_data_local = {}
@@ -297,6 +300,7 @@ class GeneralMotionRetargeting:
 
         return human_data_global
     
+    # high priority: offset the human data according to the ik config (eg: smplx_to_g1.json)
     def offset_human_data(self, human_data, pos_offsets, rot_offsets):
         """the pos offsets are applied in the local frame"""
         offset_human_data = {}
@@ -317,6 +321,7 @@ class GeneralMotionRetargeting:
            
         return offset_human_data
             
+    # high priority: offset the human data to the ground
     def offset_human_data_to_ground(self, human_data):
         """find the lowest point of the human data and offset the human data to the ground"""
         offset_human_data = {}
