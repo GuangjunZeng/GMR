@@ -246,7 +246,7 @@ class GeneralMotionRetargeting:
                 next_error = self.error2()
                 num_iter += 1
                 
-            
+        # qpos includes the root position and rotation, and the joint angles of all joints
         return self.configuration.data.qpos.copy()
 
 
