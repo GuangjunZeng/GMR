@@ -156,11 +156,11 @@ class GeneralMotionRetargeting:
         human_data = self.to_numpy(human_data) #ensure that all data is in NumPy array format
         # scale the human data in the Global Coordinate System
         human_data = self.scale_human_data(human_data, self.human_root_name, self.human_scale_table)
-        # 
+        # offset the human data according to the ik config (eg: smplx_to_g1.json)
         human_data = self.offset_human_data(human_data, self.pos_offsets1, self.rot_offsets1)
 
         #! PHC-style: compute a constant ground offset from the first frame (once)
-        if not self._ground_offset_initialized:
+        if not self._ground_offset_initialized: #self._ground_offset_initialized is false -> not self._ground_offset_initialized is true
             try:
                 min_z = np.inf
                 for body_name in human_data.keys(): #human_data是当前帧的人体数据，但是但由于 _ground_offset_initialized 标志的作用，地面偏移的计算只会在第一次调用 update_targets 时触发，所以实际上用的是"第一次传入的那一帧"（通常就是第一帧）。
@@ -179,6 +179,8 @@ class GeneralMotionRetargeting:
 
         if offset_to_ground: #offset_to_ground默认是false
             human_data = self.offset_human_data_to_ground(human_data)
+            
+        # All scale and offset operations completed, saved to self.scaled_human_data
         self.scaled_human_data = human_data
 
         if self.use_ik_match_table1:
@@ -193,7 +195,7 @@ class GeneralMotionRetargeting:
                 pos, rot = human_data[body_name]
                 task.set_target(mink.SE3.from_rotation_and_translation(mink.SO3(rot), pos))
             
-            
+
     # notice: "human_data" is the "smplx_data" in smplx_to_robot_batch.py
     def retarget(self, human_data, offset_to_ground=False):
         # Update the task targets
@@ -296,15 +298,17 @@ class GeneralMotionRetargeting:
         offset_human_data = {}
         for body_name in human_data.keys():
             pos, quat = human_data[body_name]           #pos: position of joint; quat: quaternion of joint;
-            offset_human_data[body_name] = [pos, quat]  #
+            offset_human_data[body_name] = [pos, quat]  
             # apply rotation offset first
+            # notice: quat is from smplx human data (eg: 000001.npz), rot_offsets is from ik config (eg: smplx_to_g1.json)
             updated_quat = (R.from_quat(quat, scalar_first=True) * rot_offsets[body_name]).as_quat(scalar_first=True)
             offset_human_data[body_name][1] = updated_quat
             
-            local_offset = pos_offsets[body_name]
+            local_offset = pos_offsets[body_name] # notice:  pos_offsets is from ik config (eg: smplx_to_g1.json)
             # compute the global position offset using the updated rotation
-            global_pos_offset = R.from_quat(updated_quat, scalar_first=True).apply(local_offset)
-            
+            #? 这个参量的作用是?
+            global_pos_offset = R.from_quat(updated_quat, scalar_first=True).apply(local_offset) #R is a matrix, local_offset is a vector, global_pos_offset is a vector
+            # 将全局位置偏移加到原始位置上
             offset_human_data[body_name][0] = pos + global_pos_offset
            
         return offset_human_data

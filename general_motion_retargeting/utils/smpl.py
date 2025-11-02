@@ -29,7 +29,7 @@ def load_smplx_file(smplx_file, smplx_body_model_path):
     smplx_output = body_model(
         betas=torch.tensor(smplx_data["betas"]).float().view(1, -1), # (16,)
         global_orient=torch.tensor(smplx_data["root_orient"]).float(), # (N, 3)
-        body_pose=torch.tensor(smplx_data["pose_body"]).float(), # (N, 63)
+        body_pose=torch.tensor(smplx_data["pose_body"]).float(), # (N, 63) = (N, 21*3)
         transl=torch.tensor(smplx_data["trans"]).float(), # (N, 3)
         left_hand_pose=torch.zeros(num_frames, 45).float(),
         right_hand_pose=torch.zeros(num_frames, 45).float(),
