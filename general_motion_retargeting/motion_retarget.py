@@ -202,7 +202,7 @@ class GeneralMotionRetargeting:
             
 
     # high priority: solve the IK problem using the task targets gotten in update_targets().
-    # notice: "human_data" is the "smplx_data" in smplx_to_robot_batch.py
+    # notice: "human_data" is the "smplx_data" in smplx_to_robot_batch.py, and smplx_data includes the complete data structure of reference human data (npz file)
     def retarget(self, human_data, offset_to_ground=False):
         # Update the task targets
         self.update_targets(human_data, offset_to_ground)

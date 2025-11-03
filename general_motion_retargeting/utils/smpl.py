@@ -26,6 +26,7 @@ def load_smplx_file(smplx_file, smplx_body_model_path):
     # print(smplx_data["trans"].shape)
     
     num_frames = smplx_data["pose_body"].shape[0]
+    #smplx_output还是用smplx_data来计算
     smplx_output = body_model(
         betas=torch.tensor(smplx_data["betas"]).float().view(1, -1), # (16,)
         global_orient=torch.tensor(smplx_data["root_orient"]).float(), # (N, 3)

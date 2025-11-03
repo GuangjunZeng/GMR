@@ -39,9 +39,8 @@ print(pos_offset_rev)
 
 
 # ik2 (只有两个需要另外计算)
-#left_toe_link  [-0. -0. -0.]
-
-#right_toe_link [-0. -0. -0.]
+#left_toe_link  [-0. -0. -0.] ✅
+#right_toe_link [-0. -0. -0.] ✅
 
 
 

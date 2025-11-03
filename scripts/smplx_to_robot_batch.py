@@ -308,7 +308,7 @@ def process_single_npz_file(smplx_file_path, output_path, robot, SMPLX_FOLDER, n
     """
     try:
         # high priority:::  smplx_data: used in retargeting process
-        # notice: smplx_data 包含 reference human data (npz file)的所有信息
+        # notice: smplx_data includes the complete data structure of reference human data (npz file)
         smplx_data, body_model, smplx_output, actual_human_height = load_smplx_file(
             smplx_file_path, SMPLX_FOLDER
         ) #load_smplx_file() is in /general_motion_retargeting/utils/smpl.py 
