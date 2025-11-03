@@ -211,7 +211,7 @@ class GeneralMotionRetargeting:
             # Solve the IK problem
             curr_error = self.error1()
             dt = self.configuration.model.opt.timestep
-            # notice: 
+            # notice: self.configuration includes info of "g1_mocap_29dof.xml", self.tasks1 includes info of all ik constraints of ik first phase
             vel1 = mink.solve_ik(
                 self.configuration, self.tasks1, dt, self.solver, self.damping, self.ik_limits
             )

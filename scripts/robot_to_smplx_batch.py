@@ -112,7 +112,12 @@ class RobotToSMPLXBatchConverter:
         self.smplx_model_path = pathlib.Path(smplx_model_path)
 
         robot_xml_path = ROBOT_XML_DICT[robot_type]
-        ik_config_path = IK_CONFIG_DICT["smplx"][robot_type]
+        config_root = pathlib.Path(__file__).parent.parent / "general_motion_retargeting" / "ik_configs"
+        reverse_config_path = config_root / f"{robot_type}_to_smplx.json"
+        if reverse_config_path.exists():
+            ik_config_path = reverse_config_path
+        else:
+            ik_config_path = IK_CONFIG_DICT["smplx"][robot_type]
 
         print(f"📦 加载机器人模型: {robot_xml_path}")
         import mujoco as mj  # deferred import to keep top-level fast in forked workers
@@ -155,14 +160,26 @@ class RobotToSMPLXBatchConverter:
 
         def _collect(table):
             mapping = {}
-            for robot_body_name, entry in table.items():
+            for key, entry in table.items():
                 if not entry:
                     continue
-                smplx_joint_name = entry[0]
+                if key in JOINT_NAMES:
+                    smplx_joint_name = key
+                    robot_body_name = entry[0]
+                    pos_offset = entry[3]
+                    rot_offset = entry[4]
+                else:
+                    robot_body_name = key
+                    smplx_joint_name = entry[0]
+                    pos_offset = entry[3]
+                    rot_offset = entry[4]
+
                 if smplx_joint_name not in JOINT_NAMES:
                     continue
-                pos_offset = np.array(entry[3], dtype=np.float64)
-                rot_offset = np.array(entry[4], dtype=np.float64)
+
+                pos_offset = np.array(pos_offset, dtype=np.float64)
+                rot_offset = np.array(rot_offset, dtype=np.float64)
+
                 mapping.setdefault(smplx_joint_name, {
                     "robot_body": robot_body_name,
                     "pos_offset": pos_offset,
