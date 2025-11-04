@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+
 """Convert 29-DoF robot NPZ sequences (LaFAN1-style) into SMPLX-style NPZ files.
 
 This utility inverts the retargeting pipeline by taking a single NPZ file
@@ -10,11 +11,7 @@ that the output matches the structure expected by ``smplx_to_robot_batch.py``
 The resulting NPZ can then be fed into ``robot_to_smplx_batch.py``.
 """
 
-'''
-python3 scripts/29dof_npz_to_complete_npz.py \
-  --input /home/retarget/workbench/GMR/server3_data/locomotion/robot/ik_based/npz/000001.npz \
-  --output-dir /home/retarget/workbench/GMR/server3_data/locomotion/human/ik_based/npz
-'''
+
 
 from __future__ import annotations
 
@@ -24,6 +21,12 @@ import sys
 from typing import Iterable, List, Tuple
 
 import numpy as np
+import torch
+from scipy.spatial.transform import Rotation as R
+
+
+# Example usage:
+# python scripts/29dof_npz_to_complete_npz.py  --input /home/retarget/workbench/server3_data/locomotion/robot/ik_based/npz/000001.npz  --output-dir /home/retarget/workbench/server3_data/locomotion/human/ik_based/npz
 
 
 # Ensure we can import helper utilities that live in the same scripts/ folder
@@ -79,6 +82,22 @@ EXPECTED_JOINT_NAMES: Tuple[str, ...] = (
 
 
 DEFAULT_ROBOT = "unitree_g1"
+
+DEFAULT_BETAS = np.array(
+    [
+        0.63490343,
+        0.22382046,
+        -1.02493083,
+        0.44071582,
+        -0.99539453,
+        -2.14731956,
+        1.5268985,
+        -0.18637267,
+        2.42483139,
+        1.88858294,
+    ],
+    dtype=np.float64,
+)
 
 
 def _as_numpy(array: np.ndarray, target_shape: Tuple[int, ...] | None = None) -> np.ndarray:
@@ -226,17 +245,68 @@ def convert_single_npz(
         smplx_joints = converter.robot_frame_to_smplx_joints(qpos)
         smplx_joints_list.append(smplx_joints)
 
-    smplx_params = converter._joints_to_smplx_params(smplx_joints_list, betas=betas)
+    if betas is None or np.asarray(betas).size == 0:
+        betas_array = DEFAULT_BETAS.astype(np.float64, copy=True)
+    else:
+        betas_array = np.asarray(betas, dtype=np.float64)
 
-    np.savez(
-        output_path,
-        betas=smplx_params["betas"].astype(np.float64),
-        pose_body=smplx_params["pose_body"].astype(np.float64),
-        root_orient=smplx_params["root_orient"].astype(np.float64),
-        trans=smplx_params["trans"].astype(np.float64),
-        gender=np.array(gender),
-        mocap_frame_rate=np.array(motion_fps, dtype=np.float64),
-    )
+    smplx_params = converter._joints_to_smplx_params(smplx_joints_list, betas=betas_array)
+
+    # Shapes
+    num_frames = smplx_params["pose_body"].shape[0]
+
+    # Prepare root orientation quaternions (xyzw)
+    root_quat_xyzw = R.from_rotvec(smplx_params["root_orient"]).as_quat()
+
+    # Build joints_local via SMPL-X forward pass (full_pose -> (T, 55, 3))
+    with torch.no_grad():
+        betas_t = torch.tensor(smplx_params["betas"], dtype=torch.float32).unsqueeze(0).repeat(num_frames, 1)
+        root_orient_t = torch.tensor(smplx_params["root_orient"], dtype=torch.float32)
+        body_pose_t = torch.tensor(smplx_params["pose_body"], dtype=torch.float32)
+        trans_t = torch.tensor(smplx_params["trans"], dtype=torch.float32)
+        left_hand_pose_t = torch.zeros((num_frames, 45), dtype=torch.float32)
+        right_hand_pose_t = torch.zeros((num_frames, 45), dtype=torch.float32)
+        jaw_pose_t = torch.zeros((num_frames, 3), dtype=torch.float32)
+        leye_pose_t = torch.zeros((num_frames, 3), dtype=torch.float32)
+        reye_pose_t = torch.zeros((num_frames, 3), dtype=torch.float32)
+        expression_size = getattr(converter.smplx_model, "num_expression_coeffs", 10)
+        expression_t = torch.zeros((num_frames, expression_size), dtype=torch.float32)
+
+        smplx_output = converter.smplx_model(
+            betas=betas_t,
+            global_orient=root_orient_t,
+            body_pose=body_pose_t,
+            transl=trans_t,
+            left_hand_pose=left_hand_pose_t,
+            right_hand_pose=right_hand_pose_t,
+            jaw_pose=jaw_pose_t,
+            leye_pose=leye_pose_t,
+            reye_pose=reye_pose_t,
+            expression=expression_t,
+            return_full_pose=True,
+        )
+        full_pose = smplx_output.full_pose.reshape(num_frames, -1, 3).detach().cpu().numpy()
+
+    # Compose output in the exact reference structure and dtypes
+    out = {
+        # scalars/metadata
+        "gender": np.array(gender),
+        "betas": smplx_params["betas"].astype(np.float32),
+        # body/hand axis-angle
+        "pose_body": smplx_params["pose_body"].astype(np.float32),
+        "pose_hand": np.zeros((num_frames, 90), dtype=np.float32),
+        # root (smpl_) pose, also duplicate as pelvis_*
+        "smpl_trans": smplx_params["trans"].astype(np.float32),
+        "smpl_quat_xyzw": root_quat_xyzw.astype(np.float32),
+        "pelvis_trans": smplx_params["trans"].astype(np.float32),
+        "pelvis_quat_xyzw": root_quat_xyzw.astype(np.float64),
+        # full local axis-angle for all joints
+        "joints_local": full_pose.astype(np.float64),
+        # fps as integer scalar
+        "fps": np.array(int(round(motion_fps)), dtype=np.int64),
+    }
+
+    np.savez(output_path, **out)
 
     return qpos_matrix.shape[0], motion_fps
 
@@ -294,7 +364,8 @@ def parse_arguments() -> argparse.Namespace:
     parser.add_argument(
         "--overwrite",
         action="store_true",
-        help="Overwrite the output file if it already exists",
+        default=True,
+        help="Overwrite the output file if it already exists (default: True)",
     )
 
     return parser.parse_args()

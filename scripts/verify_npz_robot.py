@@ -8,6 +8,10 @@ from typing import Dict, Iterable, Tuple
 
 import numpy as np
 
+# Example usage:
+# python scripts/verify_npz_robot.py  --input /home/retarget/workbench/server3_data/locomotion/human/ik_based/npz/000001.npz  --reference /home/retarget/workbench/server3_data/locomotion/reference/000001.npz   
+
+
 
 def load_npz(path: pathlib.Path) -> Dict[str, np.ndarray]:
     if not path.exists():
@@ -70,7 +74,7 @@ def validate_structure(data: Dict[str, np.ndarray]) -> Iterable[str]:
         if frame_rate.size != 1:
             yield "mocap_frame_rate should be a scalar"
 
-
+#对比每一个
 def compare_structures(source: Dict[str, np.ndarray], reference: Dict[str, np.ndarray]) -> Iterable[str]:
     if set(source.keys()) != set(reference.keys()):
         missing = set(reference.keys()) - set(source.keys())
@@ -106,6 +110,7 @@ def main() -> None:
     data = load_npz(input_path)
 
     print(f"Inspecting: {input_path}")
+    print("Keys:", sorted(list(data.keys())))
     for key in sorted(data.keys()):
         print("  " + summarize_array(key, np.asarray(data[key])))
 
@@ -115,7 +120,7 @@ def main() -> None:
         for err in errors:
             print(f"  - {err}")
     else:
-        print("\n✅ Structure matches expected SMPL-X layout.")
+        print("\n✅ Structure matches expected SMPLX-style layout.")
 
     if args.reference:
         reference_path = pathlib.Path(args.reference).expanduser()
