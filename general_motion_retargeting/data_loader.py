@@ -31,14 +31,40 @@ def _load_pickle_motion(path: Path) -> Tuple[Dict[str, Any], float, np.ndarray, 
 
 def _load_npz_motion(path: Path) -> Tuple[Dict[str, Any], float, np.ndarray, np.ndarray, np.ndarray, Any, Any]:
     with np.load(path, allow_pickle=True) as data:
+        qpos = None
         if "qpos" in data:
             qpos = np.asarray(data["qpos"], dtype=np.float64)
         elif "motion" in data:
             qpos = np.asarray(data["motion"], dtype=np.float64)
+        elif "full_data" in data:
+            full_data = np.asarray(data["full_data"], dtype=np.float64)
+            if full_data.ndim != 2 or full_data.shape[1] < 7:
+                raise ValueError(
+                    f"Unexpected full_data shape {full_data.shape} in {path}; expected (frames, 7 + dofs)"
+                )
+            qpos = full_data
         else:
-            raise KeyError(
-                f"NPZ motion file {path} must contain 'qpos' (xyz + quat + dof) array"
-            )
+            root_pos = data.get("root_pos")
+            root_quat = data.get("root_quat") or data.get("root_rot")
+            joints = data.get("joints") or data.get("dof_pos")
+            if root_pos is None or root_quat is None or joints is None:
+                raise KeyError(
+                    f"NPZ motion file {path} must contain either 'qpos'/'motion', 'full_data', or the trio ('root_pos', 'root_quat', 'joints')"
+                )
+            root_pos = np.asarray(root_pos, dtype=np.float64)
+            root_quat = np.asarray(root_quat, dtype=np.float64)
+            joints = np.asarray(joints, dtype=np.float64)
+            if root_pos.ndim != 2 or root_pos.shape[1] != 3:
+                raise ValueError(f"root_pos shape {root_pos.shape} in {path} is invalid; expected (frames, 3)")
+            if root_quat.ndim != 2 or root_quat.shape[1] != 4:
+                raise ValueError(f"root_quat shape {root_quat.shape} in {path} is invalid; expected (frames, 4)")
+            if joints.ndim != 2:
+                raise ValueError(f"joints shape {joints.shape} in {path} is invalid; expected 2-D array")
+            if not (root_pos.shape[0] == root_quat.shape[0] == joints.shape[0]):
+                raise ValueError(
+                    f"Frame count mismatch in {path}: root_pos {root_pos.shape[0]}, root_quat {root_quat.shape[0]}, joints {joints.shape[0]}"
+                )
+            qpos = np.concatenate([root_pos, root_quat, joints], axis=1)
 
         if qpos.ndim != 2 or qpos.shape[1] < 7:
             raise ValueError(
@@ -65,7 +91,7 @@ def _load_npz_motion(path: Path) -> Tuple[Dict[str, Any], float, np.ndarray, np.
             "root_rot_xyzw": root_rot_xyzw,
             "root_rot": root_rot,
             "dof_pos": dof_pos,
-            "qpos": qpos,
+            "qpos": qpos, #notice: root_pos, root_rot, and dof_pos
         }
 
         if "local_body_pos" in data:

@@ -95,6 +95,19 @@ class RobotToSMPLXRetargeting:
         self.model = mj.MjModel.from_xml_path(str(self.smplx_xml_path))
         self.configuration = mink.Configuration(self.model)
 
+        self.body_name_to_id: Dict[str, int] = {}
+        self.body_alias_map: Dict[str, str] = {}
+        for body_id in range(self.model.nbody):
+            name = mj.mj_id2name(self.model, mj.mjtObj.mjOBJ_BODY, body_id)
+            if name:
+                self.body_name_to_id[name] = body_id
+                lower = name.lower()
+                self.body_alias_map[lower] = name
+                if lower.startswith("l_"):
+                    self.body_alias_map["left_" + lower[2:]] = name
+                if lower.startswith("r_"):
+                    self.body_alias_map["right_" + lower[2:]] = name
+
         self.tasks1: List[mink.FrameTask] = []
         self.tasks2: List[mink.FrameTask] = []
         self.smplx_body_to_task1: Dict[str, mink.FrameTask] = {}
@@ -109,18 +122,32 @@ class RobotToSMPLXRetargeting:
         if self.use_velocity_limit:
             self.ik_limits.append(mink.VelocityLimit(self.model))
 
-        self.body_name_to_id: Dict[str, int] = {}
-        for body_id in range(self.model.nbody):
-            name = mj.mj_id2name(self.model, mj.mjtObj.mjOBJ_BODY, body_id)
-            if name:
-                self.body_name_to_id[name] = body_id
-
     # ------------------------------------------------------------------
     # Configuration helpers
     # ------------------------------------------------------------------
     def _load_ik_config(self, config_path: Path) -> Dict:
         with config_path.open("r") as f:
             return json.load(f)
+
+    def resolve_smplx_body_name(self, candidate: str) -> str:
+        custom_aliases = {
+            "spine1": "torso",
+            "spine2": "spine",
+            "spine3": "chest",
+            "left_foot": "l_toe",
+            "right_foot": "r_toe",
+        }
+
+        key = candidate.lower()
+        alias_key = custom_aliases.get(key, key)
+        if alias_key in self.body_alias_map:
+            return self.body_alias_map[alias_key]
+        # fallback: try original candidate (in case config already uses MJCF name)
+        if candidate in self.body_name_to_id:
+            return candidate
+        raise KeyError(
+            f"SMPL-X body '{candidate}' not found in humanoid MJCF. Available bodies: {list(self.body_name_to_id.keys())}"
+        )
 
     def setup_retarget_configuration(self) -> None:
         for table_name in ("ik_match_table1", "ik_match_table2"):
@@ -131,11 +158,12 @@ class RobotToSMPLXRetargeting:
 
                 robot_body, pos_weight, rot_weight, pos_offset, rot_offset = entry
                 self.robot_body_for_smplx[smplx_body] = robot_body
+                frame_name = self.resolve_smplx_body_name(smplx_body)
                 self.pos_offsets[smplx_body] = np.asarray(pos_offset, dtype=np.float64)
                 self.rot_offsets[smplx_body] = np.asarray(rot_offset, dtype=np.float64)
 
                 task = mink.FrameTask(
-                    frame_name=smplx_body,
+                    frame_name=frame_name,
                     frame_type="body",
                     position_cost=pos_weight,
                     orientation_cost=rot_weight,

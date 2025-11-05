@@ -1,5 +1,7 @@
 from scipy.spatial.transform import Rotation as R
 
+#检查从 smplx_to_g1.json中reverse 计算得到的 g1_to_smplx_json的rot_offset是否正确
+
 #python scripts/test_qua_compuation.py
 
 #mark: smplx_to_g1.json中的quat是wxyz的顺序
@@ -17,7 +19,7 @@ tx, ty, tz = 0.0, 0.0, 0.0
 
 rot_offset = R.from_quat([w, x, y, z], scalar_first=True)  # wxyz
 pos_offset = [tx, ty, tz]
-pos_offset_rev = - rot_offset.apply(pos_offset) 
+pos_offset_rev = - rot_offset.apply(pos_offset) #core calculation
 print(pos_offset_rev)
 # print(-R_off.apply([tx, ty, tzx]))
 
