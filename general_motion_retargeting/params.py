@@ -4,6 +4,8 @@ HERE = pathlib.Path(__file__).parent
 IK_CONFIG_ROOT = HERE / "ik_configs"
 ASSET_ROOT = HERE / ".." / "assets"
 
+SMPLX_HUMANOID_XML = ASSET_ROOT / "smplx_human" / "smplx_humanoid.xml"
+
 ROBOT_XML_DICT = {
     "unitree_g1": ASSET_ROOT / "unitree_g1" / "g1_mocap_29dof.xml",
     "unitree_g1_with_hands": ASSET_ROOT / "unitree_g1" / "g1_mocap_29dof_with_hands.xml",
@@ -22,6 +24,10 @@ ROBOT_XML_DICT = {
     "pnd_adam_lite": ASSET_ROOT / "pnd_adam_lite" / "scene.xml",
     "tienkung": ASSET_ROOT / "tienkung" / "mjcf" / "tienkung.xml",
     "pal_talos": ASSET_ROOT / "pal_talos" / "talos.xml",
+}
+
+REVERSE_IK_CONFIG_DICT = {
+    "unitree_g1": IK_CONFIG_ROOT / "g1_to_smplx.json",
 }
 
 IK_CONFIG_DICT = {

@@ -308,7 +308,7 @@ class GeneralMotionRetargeting:
             pos, quat = human_data[body_name]           #pos: position of joint; quat: quaternion of joint;
             offset_human_data[body_name] = [pos, quat]  
             # apply rotation offset first
-            # notice: quat is from smplx human data (eg: 000001.npz), rot_offsets is from ik config (eg: smplx_to_g1.json)
+            # notice: quat is from human_data, rot_offsets is from ik config (eg: smplx_to_g1.json)
             updated_quat = (R.from_quat(quat, scalar_first=True) * rot_offsets[body_name]).as_quat(scalar_first=True)
             offset_human_data[body_name][1] = updated_quat
             
