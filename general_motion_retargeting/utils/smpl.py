@@ -127,7 +127,7 @@ def get_smplx_data(smplx_data, body_model, smplx_output, curr_frame):
             rot = R.from_rotvec(global_orient)
         else:
             rot = joint_orientations[parents[i]] * R.from_rotvec(
-                full_body_pose[i].squeeze()
+                full_body_pose[i].squeeze() #notice: rot是世界坐标系的旋转矩阵
             )
         joint_orientations.append(rot)
         result[joint_name] = (joints[i], rot.as_quat(scalar_first=True))
