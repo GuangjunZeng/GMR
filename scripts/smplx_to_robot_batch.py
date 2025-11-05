@@ -51,10 +51,10 @@ def manual_downsample_smplx_data(smplx_data, body_model, smplx_output, down_samp
     
     # Get original data
     num_frames = smplx_data["pose_body"].shape[0]
-    global_orient = smplx_output.global_orient.squeeze()
-    full_body_pose = smplx_output.full_pose.reshape(num_frames, -1, 3)
-    joints = smplx_output.joints.detach().numpy().squeeze()
-    joint_names = JOINT_NAMES[: len(body_model.parents)]
+    global_orient = smplx_output.global_orient.squeeze() #root_orient
+    full_body_pose = smplx_output.full_pose.reshape(num_frames, -1, 3) #full_pose是SMPLX模型自带的一个参量
+    joints = smplx_output.joints.detach().numpy().squeeze() #joints是SMPLX模型自带的一个参量: 3D位置
+    joint_names = JOINT_NAMES[: len(body_model.parents)] #parents是SMPLX模型自带的一个参量
     parents = body_model.parents
     
     # Downsample by taking every down_sample-th frame
@@ -74,8 +74,9 @@ def manual_downsample_smplx_data(smplx_data, body_model, smplx_output, down_samp
             if i == 0:
                 rot = R.from_rotvec(single_global_orient)
             else:
+                #该关节的世界旋转
                 rot = joint_orientations[parents[i]] * R.from_rotvec(
-                    single_full_body_pose[i].squeeze()
+                    single_full_body_pose[i].squeeze() #single_full_body_pose[i]: 当前关节相对于父关节的局部旋转
                 )
             joint_orientations.append(rot)
             result[joint_name] = (single_joints[i], rot.as_quat(scalar_first=True))
@@ -85,7 +86,7 @@ def manual_downsample_smplx_data(smplx_data, body_model, smplx_output, down_samp
     src_fps = smplx_data["mocap_frame_rate"].item()
     aligned_fps = src_fps / down_sample
     
-    return smplx_data_frames, aligned_fps
+    return smplx_data_frames, aligned_3fps
     
 
 # ===== 进度跟踪 =====
@@ -364,6 +365,7 @@ def process_single_npz_file(smplx_file_path, output_path, robot, SMPLX_FOLDER, n
                 fps_counter = 0
                 fps_start_time = current_time
             # Update task targets.
+            #notice: 这里的smplx_data并不再有原始npz文件的完整数据结构，它只包含单帧的数据。
             smplx_data = smplx_data_frames[i]
             # retarget
             qpos = retarget.retarget(smplx_data)
@@ -399,9 +401,9 @@ def process_single_npz_file(smplx_file_path, output_path, robot, SMPLX_FOLDER, n
         # high priority: save the retargeted robot motion data to pkl file
         motion_data = {
             "fps": aligned_fps,
-            "root_pos": root_pos,
+            "root_pos": root_pos, 
             "root_rot": root_rot,
-            "dof_pos": dof_pos,
+            "dof_pos": dof_pos, 
             "local_body_pos": local_body_pos,
             "link_body_list": body_names,
         }

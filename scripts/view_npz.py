@@ -8,11 +8,12 @@ import os
 
 # python scripts/view_npz.py  assets/body_models/smplx/SMPLX_MALE.npz
 # python scripts/view_npz.py  ../server3_data/locomotion/reference/000001.npz
-# python scripts/view_npz.py  ../server3_data/locomotion/reference/000002.npz
+# 0
 # python scripts/view_npz.py  ../server3_data/locomotion/reference/010220.npz
 
 
 # 文件包含的键: ['gender', 'betas', 'pose_body', 'pose_hand', 'smpl_trans', 'smpl_quat_xyzw', 'pelvis_trans', 'pelvis_quat_xyzw', 'joints_local', 'fps']
+#gender, betas, pose_body, 
 
 def view_npz_data(npz_path, show_preview=True, save_csv=False):
     """查看NPZ文件内容"""
