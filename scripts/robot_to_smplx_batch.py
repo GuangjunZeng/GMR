@@ -255,12 +255,12 @@ def process_single_npz_file(npz_file_path, output_path, robot, SMPLX_FOLDER, gen
     """
     try:
         # high priority: 加载机器人运动数据
-        _, motion_fps, root_pos, root_rot_wxyz, dof_pos, _, _ = load_robot_motion(npz_file_path)
+        _, motion_fps, root_pos, root_rot_wxyz, dof_pos, _, _ = load_robot_motion(npz_file_path) #notice: root_rot_wxyz is wxyz format
         
         # high priority: initialize the retargeting system
         retarget = RobotToSMPLXRetargeting(
             robot_type=robot,
-            smplx_model_path=SMPLX_FOLDER,
+            smplx_model_path=SMPLX_FOLDER, #smplx model file
             gender=gender,
         )
 
@@ -269,37 +269,38 @@ def process_single_npz_file(npz_file_path, output_path, robot, SMPLX_FOLDER, gen
         if save_dir:  # Only create directory if it's not empty
             os.makedirs(save_dir, exist_ok=True)
 
-        # high priority: doing retargeting frame by frame
+        
         smplx_data_frames = []
         i = 0
-        num_frames = root_pos.shape[0]
+        num_frames = root_pos.shape[0]  #rows
         while True:
-            if i >= num_frames: #完成所有帧的处理
+            if i >= num_frames: ##Finish processing all frames
                 break
             
             # 组合当帧的 qpos
             qpos = retarget.robot_kinematics.compose_qpos(
                 root_pos[i],
-                root_rot_wxyz[i],
+                root_rot_wxyz[i], #在smplx_to_robot_batch.py中求解得到的qpos是wxyz格式，所以这里组成qpos的时候也是wxyz格式
                 dof_pos[i],
             )
-            
             # 计算机器人各 body 的世界姿态 (FK)
-            robot_frame_data = retarget.robot_kinematics.forward_kinematics(qpos)
+            robot_frame_data = retarget.robot_kinematics.forward_kinematics(qpos)  #输入和输出都不含有手部part的信息
+            #warning：暂时无法验证这个fk计算是否完全正确
             
+            
+            #? warning: ik table中g1 body的名称和lafan格式中的不完全一样？ 
             # retarget: 调用 IK，将机器人姿态映射到 SMPL-X
             retarget.retarget(robot_frame_data)
-            
-            # 保存当帧 SMPL-X 关节姿态
+            # 保存当帧 SMPLX 关节姿态
             smplx_data_frames.append(retarget.extract_smplx_frame())
             
             i += 1
 
-        # high priority: 转换为 SMPL-X 参数格式
+       
         betas_array = np.array(betas, dtype=np.float64, copy=False) if betas is not None else None
         smplx_params = retarget.frames_to_smplx_parameters(smplx_data_frames, betas=betas_array)
         
-        # high priority: save the retargeted SMPL-X motion data to npz file
+
         np.savez(
             output_path,
             betas=smplx_params["betas"],

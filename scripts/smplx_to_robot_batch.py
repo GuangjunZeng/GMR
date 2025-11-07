@@ -402,9 +402,9 @@ def process_single_npz_file(smplx_file_path, output_path, robot, SMPLX_FOLDER, n
         motion_data = {
             "fps": aligned_fps,
             "root_pos": root_pos, 
-            "root_rot": root_rot,
+            "root_rot": root_rot, #notice：这里的root_rot是xyzw格式
             "dof_pos": dof_pos, 
-            "local_body_pos": local_body_pos,
+            "local_body_pos": local_body_pos,  #is none? # npz文件呢？ #没有手部信息吗？ #那怎么可视化如果不用前向运动学？ 
             "link_body_list": body_names,
         }
         with open(output_path, "wb") as f:

@@ -34,6 +34,7 @@ class RobotToSMPLXRetargeting:
 
         # Robot kinematics (used to compute target poses)
         self.robot_xml_path = ROBOT_XML_DICT[robot_type]
+        #notice：将g1 robot model （xml file）传入到RobotKinematics类中，所以RobotKinematics.xml_path = self.robot_xml_path
         self.robot_kinematics = RobotKinematics(self.robot_xml_path)
 
         # Solver configuration
@@ -92,6 +93,7 @@ class RobotToSMPLXRetargeting:
         if not self.smplx_xml_path.exists():
             raise FileNotFoundError(f"SMPL-X humanoid MJCF not found: {self.smplx_xml_path}")
 
+        #notice： self.model is the smplx model.
         self.model = mj.MjModel.from_xml_path(str(self.smplx_xml_path))
         self.configuration = mink.Configuration(self.model)
 
@@ -101,10 +103,10 @@ class RobotToSMPLXRetargeting:
             name = mj.mj_id2name(self.model, mj.mjtObj.mjOBJ_BODY, body_id)
             if name:
                 self.body_name_to_id[name] = body_id
-                lower = name.lower()
-                self.body_alias_map[lower] = name
+                lower = name.lower() #有的name是大写开头，如：L_Hip
+                self.body_alias_map[lower] = name # l_hip -- L_Hip (大小写)
                 if lower.startswith("l_"):
-                    self.body_alias_map["left_" + lower[2:]] = name
+                    self.body_alias_map["left_" + lower[2:]] = name # left_hip -- L_hip (l/r缩写)
                 if lower.startswith("r_"):
                     self.body_alias_map["right_" + lower[2:]] = name
 
@@ -133,22 +135,24 @@ class RobotToSMPLXRetargeting:
         custom_aliases = {
             "spine1": "torso",
             "spine2": "spine",
-            "spine3": "chest",
-            "left_foot": "l_toe",
-            "right_foot": "r_toe",
+            "spine3": "chest",     #spine3 exist in g1_to_smplx.json, but not in smplx MJCF model
+            #notice: spine3 is chest in smplx MJCF model. The torse_link (in g1_to_smplx.json) is not the same meaning as the torse in smplx MJCF model.
+            "left_foot": "l_toe",  #left_foot exist in g1_to_smplx.json, but not in smplx MJCF model
+            "right_foot": "r_toe", #right_foot exist in g1_to_smplx.json, but not in smplx MJCF model
         }
 
-        key = candidate.lower()
-        alias_key = custom_aliases.get(key, key)
-        if alias_key in self.body_alias_map:
-            return self.body_alias_map[alias_key]
+        key = candidate.lower() 
+        alias_key = custom_aliases.get(key, key) #eg: 第一级, spine3->chest
+        if alias_key in self.body_alias_map:     #eg: 第二级, chest->Chest
+            return self.body_alias_map[alias_key] 
         # fallback: try original candidate (in case config already uses MJCF name)
-        if candidate in self.body_name_to_id:
+        if candidate in self.body_name_to_id: #查找self.body_name_to_id的key，不是value
             return candidate
         raise KeyError(
             f"SMPL-X body '{candidate}' not found in humanoid MJCF. Available bodies: {list(self.body_name_to_id.keys())}"
         )
 
+    # high priority: set the configuration parameters for motion retargeting.
     def setup_retarget_configuration(self) -> None:
         for table_name in ("ik_match_table1", "ik_match_table2"):
             table = self.ik_config.get(table_name, {})
@@ -157,13 +161,15 @@ class RobotToSMPLXRetargeting:
                     continue
 
                 robot_body, pos_weight, rot_weight, pos_offset, rot_offset = entry
-                self.robot_body_for_smplx[smplx_body] = robot_body
-                frame_name = self.resolve_smplx_body_name(smplx_body)
+                self.robot_body_for_smplx[smplx_body] = robot_body     #key is the smplx body name, value is the robot body name
+                frame_name = self.resolve_smplx_body_name(smplx_body)  #notice: frame_name is body name in smplx MJCF format
                 self.pos_offsets[smplx_body] = np.asarray(pos_offset, dtype=np.float64)
                 self.rot_offsets[smplx_body] = np.asarray(rot_offset, dtype=np.float64)
+                print(f"smplx_body: {smplx_body}, frame_name in the ik task: {frame_name}") 
+                
 
                 task = mink.FrameTask(
-                    frame_name=frame_name,
+                    frame_name=frame_name, #?大小写似乎不影响？
                     frame_type="body",
                     position_cost=pos_weight,
                     orientation_cost=rot_weight,
@@ -172,7 +178,7 @@ class RobotToSMPLXRetargeting:
 
                 if table_name == "ik_match_table1" and (pos_weight != 0 or rot_weight != 0):
                     self.tasks1.append(task)
-                    self.smplx_body_to_task1[smplx_body] = task
+                    self.smplx_body_to_task1[smplx_body] = task #? 这个的作用是?
                 elif table_name == "ik_match_table2" and (pos_weight != 0 or rot_weight != 0):
                     self.tasks2.append(task)
                     self.smplx_body_to_task2[smplx_body] = task
@@ -253,9 +259,10 @@ class RobotToSMPLXRetargeting:
     # ------------------------------------------------------------------
     # IK update / solve (mirrors GeneralMotionRetargeting)
     # ------------------------------------------------------------------
+     # high priority: using scale and offset to compute target pose of every body of smplx human, and update the (IK)task targets.
     def update_targets(self, robot_data: Dict[str, BodyPose], offset_to_ground: bool = True) -> None:
-        robot_data = self.to_numpy(robot_data)
-        robot_data = self.scale_robot_data(robot_data)
+        robot_data = self.to_numpy(robot_data) #ensure that all data is in NumPy array format
+        robot_data = self.scale_robot_data(robot_data) 
 
         if not self._ground_offset_initialized:
             try:
@@ -330,14 +337,28 @@ class RobotToSMPLXRetargeting:
     # Pre-/post-processing utilities
     # ------------------------------------------------------------------
     def to_numpy(self, body_poses: Dict[str, BodyPose]) -> Dict[str, BodyPose]:
+        # Debug-only check: verify that BodyPose fields are numpy arrays; do not mutate/convert.
+        # This mirrors motion_retarget.to_numpy semantics but keeps this as a no-op converter.
+        try:
+            for body_name, pose in body_poses.items():
+                pos_is_np = isinstance(pose.pos, np.ndarray)
+                rot_is_np = isinstance(pose.rot, np.ndarray)
+                # print(
+                #     f"[to_numpy] {body_name}: pos is np.ndarray={pos_is_np}, rot is np.ndarray={rot_is_np}"
+                # )
+        except Exception as e:
+            print(f"[to_numpy] Warning: failed to inspect body poses: {e}")
         return body_poses
-
+    
+    # high priority: scale the robot data in the Global Coordinate System
     def scale_robot_data(self, robot_data: Dict[str, BodyPose]) -> Dict[str, BodyPose]:
         if not self.robot_scale_table:
+            print("No robot scale table found. This may cause incorrect motion retargeting.")
             return robot_data
 
         root_pose = robot_data.get(self.robot_root_name)
         if root_pose is None:
+            print("No robot root pose found. This may cause incorrect motion retargeting.")
             return robot_data
 
         scaled: Dict[str, BodyPose] = {}

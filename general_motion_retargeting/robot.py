@@ -24,12 +24,12 @@ class RobotKinematics:
     """
 
     def __init__(self, xml_path: Path | str) -> None:
-        self.xml_path = Path(xml_path)
+        self.xml_path = Path(xml_path) #notice：xml_path is the path to the robot model (xml file)
         if not self.xml_path.exists():
             raise FileNotFoundError(f"Robot MJCF xml not found: {self.xml_path}")
 
-        self.model = mj.MjModel.from_xml_path(str(self.xml_path))
-        self.data = mj.MjData(self.model)
+        self.model = mj.MjModel.from_xml_path(str(self.xml_path)) 
+        self.data = mj.MjData(self.model) 
 
         self._body_names: List[str] = []
         for body_id in range(self.model.nbody):
@@ -80,15 +80,17 @@ class RobotKinematics:
         if qpos.shape[-1] != self.nq:
             raise ValueError(f"qpos dimension mismatch: expected {self.nq}, got {qpos.shape[-1]}")
 
-        self.data.qpos[:] = qpos
-        mj.mj_forward(self.model, self.data)
+        #mark：如果将qpos直接赋值给self.data.qpos，则self.data.qpos会断开与 MuJoCo C 结构体的连接
+        self.data.qpos[:] = qpos #notice：self.data是MjData 对象，存储模型的状态信息
+        mj.mj_forward(self.model, self.data) #warning：没有看过这个函数的源码
+        #less /home/retarget/workbench/mujoco_source/src/engine/engine_forward.c
 
         poses: Dict[str, BodyPose] = {}
         for body_id, body_name in enumerate(self._body_names):
             if not body_name:
                 continue
             pos = self.data.xpos[body_id].copy()
-            quat = self.data.xquat[body_id].copy()  # wxyz
+            quat = self.data.xquat[body_id].copy()  #warning：暂时无法验证是 wxyz 顺序
             poses[body_name] = BodyPose(pos=pos, rot=quat)
         return poses
 

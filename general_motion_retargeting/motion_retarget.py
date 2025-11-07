@@ -127,7 +127,7 @@ class GeneralMotionRetargeting:
                     lm_damping=1,
                 )
                 #establish the mapping relationship from "human joint names" to "robot IK tasks"
-                self.human_body_to_task1[body_name] = task  #key is the human body name, value is the robot IK task (a task is for a joint of robot)
+                self.human_body_to_task1[body_name] = task  #key is the robot body name, value is the robot IK task (a task is for a joint of robot)
                 self.pos_offsets1[body_name] = np.array(pos_offset) - self.ground #将偏移量从"相对于地面"转换为"相对于世界坐标系原点"
                 self.rot_offsets1[body_name] = R.from_quat(
                     rot_offset, scalar_first=True
