@@ -54,7 +54,7 @@ class RobotToSMPLXRetargeting:
 
         self.robot_root_name = self.ik_config["robot_root_name"]
         self.smplx_root_name = self.ik_config["human_root_name"]
-        self.use_ik_match_table1 = self.ik_config.get("use_ik_match_table1", True)
+        self.use_ik_match_table1 = self.ik_config.get("use_ik_match_table1", True) #查找key "use_ik_match_table1" 的value，如果没有则默认返回True
         self.use_ik_match_table2 = self.ik_config.get("use_ik_match_table2", True)
         self.robot_scale_table = self.ik_config.get("robot_scale_table", {})
         self.ground_height = float(self.ik_config.get("ground_height", 0.0))
@@ -158,6 +158,7 @@ class RobotToSMPLXRetargeting:
             table = self.ik_config.get(table_name, {})
             for smplx_body, entry in table.items():
                 if not entry or smplx_body not in JOINT_NAMES:
+                    print(f"smplx_body: {smplx_body} not found in JOINT_NAMES or the entry is empty")
                     continue
 
                 robot_body, pos_weight, rot_weight, pos_offset, rot_offset = entry
@@ -169,16 +170,16 @@ class RobotToSMPLXRetargeting:
                 
 
                 task = mink.FrameTask(
-                    frame_name=frame_name, #?大小写似乎不影响？
+                    frame_name=frame_name,  #notice: frame_name is body name in smplx MJCF format
                     frame_type="body",
                     position_cost=pos_weight,
                     orientation_cost=rot_weight,
                     lm_damping=1,
                 )
-
+                #warning: smplx_body 是 ik table中的key
                 if table_name == "ik_match_table1" and (pos_weight != 0 or rot_weight != 0):
                     self.tasks1.append(task)
-                    self.smplx_body_to_task1[smplx_body] = task #? 这个的作用是?
+                    self.smplx_body_to_task1[smplx_body] = task #
                 elif table_name == "ik_match_table2" and (pos_weight != 0 or rot_weight != 0):
                     self.tasks2.append(task)
                     self.smplx_body_to_task2[smplx_body] = task
@@ -262,29 +263,32 @@ class RobotToSMPLXRetargeting:
      # high priority: using scale and offset to compute target pose of every body of smplx human, and update the (IK)task targets.
     def update_targets(self, robot_data: Dict[str, BodyPose], offset_to_ground: bool = True) -> None:
         robot_data = self.to_numpy(robot_data) #ensure that all data is in NumPy array format
-        robot_data = self.scale_robot_data(robot_data) 
+        robot_data = self.scale_robot_data(robot_data)  
 
-        if not self._ground_offset_initialized:
+        if not self._ground_offset_initialized: #self._ground_offset_initialized is false -> not self._ground_offset_initialized is true
             try:
                 lowest_z = min(pose.pos[2] for pose in robot_data.values())
-                desired = self.ground_height
-                self.set_ground_offset(max(0.0, desired - lowest_z))
+                desired = self.ground_height #ground_height is zero.
+                self.set_ground_offset(max(0.0, desired - lowest_z)) #notice: lowest_z is usually negative(since smplx human is usually higher than g1 robot).
             except ValueError:
+                print("Warning: Failed to compute constant ground offset.")
                 self.set_ground_offset(0.0)
             self._ground_offset_initialized = True
 
         robot_data = self.apply_ground_offset(robot_data)
 
-        if offset_to_ground:
-            robot_data = self.offset_robot_data_to_ground(robot_data)
+        # if offset_to_ground:
+        #     robot_data = self.offset_robot_data_to_ground(robot_data)
 
         self.scaled_robot_data = robot_data
 
         if self.use_ik_match_table1:
             for smplx_body, task in self.smplx_body_to_task1.items():
-                robot_body = self.robot_body_for_smplx.get(smplx_body)
+                #smplx_body is smplx body name only exist in ik table1 or table2
+                robot_body = self.robot_body_for_smplx.get(smplx_body) 
                 pose = robot_data.get(robot_body)
                 if pose is None:
+                    print(f"During the update_targets() function, no pose found for the robot body: {robot_body}")
                     continue
                 target_pos, target_rot = self.compute_target_pose(smplx_body, pose)
                 task.set_target(mink.SE3.from_rotation_and_translation(mink.SO3(target_rot), target_pos))
@@ -292,8 +296,10 @@ class RobotToSMPLXRetargeting:
         if self.use_ik_match_table2:
             for smplx_body, task in self.smplx_body_to_task2.items():
                 robot_body = self.robot_body_for_smplx.get(smplx_body)
-                pose = robot_data.get(robot_body)
+                #notice: robot_data is a dictionary, key is the robot body name, value is the BodyPose which contains pos and quat(wxyz)
+                pose = robot_data.get(robot_body) 
                 if pose is None:
+                    print(f"During the update_targets() function, no pose found for the robot body: {robot_body}")
                     continue
                 target_pos, target_rot = self.compute_target_pose(smplx_body, pose)
                 task.set_target(mink.SE3.from_rotation_and_translation(mink.SO3(target_rot), target_pos))
@@ -356,12 +362,12 @@ class RobotToSMPLXRetargeting:
             print("No robot scale table found. This may cause incorrect motion retargeting.")
             return robot_data
 
-        root_pose = robot_data.get(self.robot_root_name)
+        root_pose = robot_data.get(self.robot_root_name)  #notice: robot_data is a dictionary, key is the robot body name, value is the BodyPose which contains pos and quat(wxyz)
         if root_pose is None:
             print("No robot root pose found. This may cause incorrect motion retargeting.")
             return robot_data
 
-        scaled: Dict[str, BodyPose] = {}
+        scaled: Dict[str, BodyPose] = {} #mark: 这种定义dict的好处是value "BodyPose" 可以方便地对子键值对进行操作。eg: 就像下一行的root_pose.pos(root_pose is the BodyPose in robot_data)
         root_pos = root_pose.pos
         for body_name, pose in robot_data.items():
             scale = self.robot_scale_table.get(body_name)
@@ -374,6 +380,7 @@ class RobotToSMPLXRetargeting:
 
         return scaled
 
+    # high priority: offset the robot data to the ground (before ik retargeting)
     def apply_ground_offset(self, body_poses: Dict[str, BodyPose]) -> Dict[str, BodyPose]:
         if self.ground_offset == 0.0:
             return body_poses

@@ -126,8 +126,10 @@ class GeneralMotionRetargeting:
                     orientation_cost=rot_weight,
                     lm_damping=1,
                 )
+
+                #warning: body_name 是 ik_match_table1中value的一个, it's the smplx human body name
                 #establish the mapping relationship from "human joint names" to "robot IK tasks"
-                self.human_body_to_task1[body_name] = task  #key is the robot body name, value is the robot IK task (a task is for a joint of robot)
+                self.human_body_to_task1[body_name] = task  #
                 self.pos_offsets1[body_name] = np.array(pos_offset) - self.ground #将偏移量从"相对于地面"转换为"相对于世界坐标系原点"
                 self.rot_offsets1[body_name] = R.from_quat(
                     rot_offset, scalar_first=True
@@ -139,7 +141,7 @@ class GeneralMotionRetargeting:
             body_name, pos_weight, rot_weight, pos_offset, rot_offset = entry
             if pos_weight != 0 or rot_weight != 0:
                 task = mink.FrameTask(
-                    frame_name=frame_name,
+                    frame_name=frame_name, #frame_name is robot body name
                     frame_type="body",
                     position_cost=pos_weight,
                     orientation_cost=rot_weight,
@@ -187,8 +189,8 @@ class GeneralMotionRetargeting:
 
         if self.use_ik_match_table1:
             for body_name in self.human_body_to_task1.keys():
-                task = self.human_body_to_task1[body_name]
-                pos, rot = human_data[body_name]
+                task = self.human_body_to_task1[body_name] #notice: body_name always is the smplx human body name
+                pos, rot = human_data[body_name] #notice: currently, pos, rot is the scaled and offsetted data (targeted robot joint position and rotation)
                 task.set_target(mink.SE3.from_rotation_and_translation(mink.SO3(rot), pos))
                 #mink.SO3(rot):将四元数 rot = [w, x, y, z] 转换为 SO(3) 旋转对象
                 #mink.SE3.from_rotation_and_translation(...): 组合旋转和平移，创建完整的 6D 位姿（pose）
@@ -296,7 +298,7 @@ class GeneralMotionRetargeting:
         # transform the human data back to the global frame
         human_data_global = {human_root_name: (scaled_root_pos, root_quat)}
         for body_name in human_data_local.keys():
-            human_data_global[body_name] = (human_data_local[body_name] + scaled_root_pos, human_data[body_name][1])
+            human_data_global[body_name] = (human_data_local[body_name] + scaled_root_pos, human_data[body_name][1]) #notics: human_data is a dict, key is body name, value is the (pos, quat)
 
         return human_data_global
     
@@ -344,7 +346,9 @@ class GeneralMotionRetargeting:
 
     def set_ground_offset(self, ground_offset):
         self.ground_offset = ground_offset
+        print(f"Ground offset set to: {self.ground_offset}")
 
+    # high priority: offset the human data to the ground
     def apply_ground_offset(self, human_data): #human_data是一帧的数据
         for body_name in human_data.keys():
             pos, quat = human_data[body_name]

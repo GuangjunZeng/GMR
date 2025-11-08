@@ -85,7 +85,7 @@ class RobotKinematics:
         mj.mj_forward(self.model, self.data) #warning：没有看过这个函数的源码
         #less /home/retarget/workbench/mujoco_source/src/engine/engine_forward.c
 
-        poses: Dict[str, BodyPose] = {}
+        poses: Dict[str, BodyPose] = {} #define "poses", key is the str, value is the BodyPose which contains pos and quat
         for body_id, body_name in enumerate(self._body_names):
             if not body_name:
                 continue
@@ -100,7 +100,7 @@ class RobotKinematics:
         poses: List[Dict[str, BodyPose]] = []
         for frame_qpos in qpos_sequence:
             poses.append(self.forward_kinematics(frame_qpos))
-        return poses
+        return poses 
 
 
 __all__ = ["BodyPose", "RobotKinematics"]
