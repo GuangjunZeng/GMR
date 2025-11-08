@@ -41,6 +41,7 @@ class RobotToSMPLXRetargeting:
         self.solver = solver
         self.damping = damping
         self.use_velocity_limit = use_velocity_limit
+        self.max_iter = 10
 
         # Reverse IK configuration
         if ik_config_path is None:
@@ -76,7 +77,7 @@ class RobotToSMPLXRetargeting:
             use_pca=False,
         )
 
-        self.smplx_joint_names = JOINT_NAMES[: len(self.smplx_model.parents)]
+        self.smplx_joint_names = JOINT_NAMES[: len(self.smplx_model.parents)] #len(self.smplx_model.parents) = 关节数（由 parents 长度决定）
         self.smplx_name_to_idx = {name: i for i, name in enumerate(self.smplx_joint_names)}
         self.smplx_parents = self.smplx_model.parents.detach().cpu().numpy().astype(int)
 
@@ -139,12 +140,18 @@ class RobotToSMPLXRetargeting:
             #notice: spine3 is chest in smplx MJCF model. The torse_link (in g1_to_smplx.json) is not the same meaning as the torse in smplx MJCF model.
             "left_foot": "l_toe",  #left_foot exist in g1_to_smplx.json, but not in smplx MJCF model
             "right_foot": "r_toe", #right_foot exist in g1_to_smplx.json, but not in smplx MJCF model
+
+            "left_collar": "l_thorax",
+            "right_collar": "r_thorax",
         }
 
         key = candidate.lower() 
+        if key == "jaw" or key == "left_eye_smplhf" or key == "right_eye_smplhf":
+            return key
+
         alias_key = custom_aliases.get(key, key) #eg: 第一级, spine3->chest
         if alias_key in self.body_alias_map:     #eg: 第二级, chest->Chest
-            return self.body_alias_map[alias_key] 
+            return self.body_alias_map[alias_key]  #notice: body_alias_map includes all body names in smplx MJCF model from "smplx_humanoid.xml" file
         # fallback: try original candidate (in case config already uses MJCF name)
         if candidate in self.body_name_to_id: #查找self.body_name_to_id的key，不是value
             return candidate
@@ -166,7 +173,7 @@ class RobotToSMPLXRetargeting:
                 frame_name = self.resolve_smplx_body_name(smplx_body)  #notice: frame_name is body name in smplx MJCF format
                 self.pos_offsets[smplx_body] = np.asarray(pos_offset, dtype=np.float64)
                 self.rot_offsets[smplx_body] = np.asarray(rot_offset, dtype=np.float64)
-                print(f"smplx_body: {smplx_body}, frame_name in the ik task: {frame_name}") 
+                # print(f"smplx_body: {smplx_body}, frame_name in the ik task: {frame_name}") 
                 
 
                 task = mink.FrameTask(
@@ -230,31 +237,32 @@ class RobotToSMPLXRetargeting:
 
     def frames_to_smplx_parameters(
         self,
-        smplx_frames: List[Dict[str, Dict[str, np.ndarray]]],
+        smplx_frames: List[Dict[str, Dict[str, np.ndarray]]],  #notice: smplx_frames includes dicts {body_name: {"pos": pos, "rot": quat}}
         betas: Optional[np.ndarray],
     ) -> Dict[str, np.ndarray]:
         betas_array = self.prepare_betas(betas)
-        root_orient_list: List[np.ndarray] = []
-        trans_list: List[np.ndarray] = []
-        body_pose_list: List[np.ndarray] = []
+        pelvis_trans_list: List[np.ndarray] = []
+        pelvis_quat_xyzw_list: List[np.ndarray] = []
+        pose_body_list: List[np.ndarray] = []
 
-        for frame_joints in smplx_frames:
+        for frame_joints in smplx_frames: #iterate through the joints data of each frame
             if self.smplx_root_name in frame_joints:
-                root_pos = frame_joints[self.smplx_root_name]["pos"]
-                root_rot = frame_joints[self.smplx_root_name]["rot"]
-                trans_list.append(root_pos)
-                root_orient_list.append(R.from_quat(root_rot[[1, 2, 3, 0]]).as_rotvec())
+                pelvis_pos = frame_joints[self.smplx_root_name]["pos"]
+                pelvis_rot = frame_joints[self.smplx_root_name]["rot"]  # wxyz format
+                pelvis_trans_list.append(pelvis_pos)
+                pelvis_quat_xyzw_list.append(R.from_quat(root_rot[[1, 2, 3, 0]]).as_rotvec()) #xyzw format
             else:
-                trans_list.append(np.zeros(3, dtype=np.float64))
-                root_orient_list.append(np.zeros(3, dtype=np.float64))
+                pass
+                # trans_list.append(np.zeros(3, dtype=np.float64))
+                # root_orient_list.append(np.zeros(3, dtype=np.float64))
 
-            body_pose_list.append(self.compute_local_rotations(frame_joints))
+            body_pose_list.append(self.compute_local_rotations(frame_joints)) 
 
         return {
             "betas": betas_array,
-            "root_orient": np.asarray(root_orient_list, dtype=np.float64),
-            "trans": np.asarray(trans_list, dtype=np.float64),
-            "pose_body": np.asarray(body_pose_list, dtype=np.float64),
+            "pelvis_trans": np.asarray(pelvis_trans_list, dtype=np.float64),
+            "pelvis_quat_xyzw": np.asarray(pelvis_quat_xyzw_list, dtype=np.float64),
+            # "pose_body": np.asarray(body_pose_list, dtype=np.float64),
         }
 
     # ------------------------------------------------------------------
@@ -264,6 +272,7 @@ class RobotToSMPLXRetargeting:
     def update_targets(self, robot_data: Dict[str, BodyPose], offset_to_ground: bool = True) -> None:
         robot_data = self.to_numpy(robot_data) #ensure that all data is in NumPy array format
         robot_data = self.scale_robot_data(robot_data)  
+        #warning: human_height_assumption is not used? 
 
         if not self._ground_offset_initialized: #self._ground_offset_initialized is false -> not self._ground_offset_initialized is true
             try:
@@ -291,6 +300,8 @@ class RobotToSMPLXRetargeting:
                     print(f"During the update_targets() function, no pose found for the robot body: {robot_body}")
                     continue
                 target_pos, target_rot = self.compute_target_pose(smplx_body, pose)
+                #warning: pose is already the target pose ?
+                # target_pos ,target_rot = pose.pos, pose.rot
                 task.set_target(mink.SE3.from_rotation_and_translation(mink.SO3(target_rot), target_pos))
 
         if self.use_ik_match_table2:
@@ -301,10 +312,12 @@ class RobotToSMPLXRetargeting:
                 if pose is None:
                     print(f"During the update_targets() function, no pose found for the robot body: {robot_body}")
                     continue
-                target_pos, target_rot = self.compute_target_pose(smplx_body, pose)
+                # target_pos, target_rot = self.compute_target_pose(smplx_body, pose)
+                #warning: pose is already the target pose ?
+                target_pos ,target_rot = pose.pos, pose.rot
                 task.set_target(mink.SE3.from_rotation_and_translation(mink.SO3(target_rot), target_pos))
 
-    def retarget(self, robot_data: Dict[str, BodyPose], offset_to_ground: bool = True) -> np.ndarray:
+    def retarget(self, robot_data: Dict[str, BodyPose], offset_to_ground: bool = False) -> np.ndarray:
         self.update_targets(robot_data, offset_to_ground=offset_to_ground)
 
         if self.use_ik_match_table1:
@@ -314,7 +327,7 @@ class RobotToSMPLXRetargeting:
             self.configuration.integrate_inplace(vel1, dt)
             next_error = self.error1()
             num_iter = 0
-            while curr_error - next_error > 0.001 and num_iter < 10:
+            while curr_error - next_error > 0.001 and num_iter < self.max_iter:
                 curr_error = next_error
                 dt = self.configuration.model.opt.timestep
                 vel1 = mink.solve_ik(self.configuration, self.tasks1, dt, self.solver, self.damping, self.ik_limits)
@@ -329,7 +342,7 @@ class RobotToSMPLXRetargeting:
             self.configuration.integrate_inplace(vel2, dt)
             next_error = self.error2()
             num_iter = 0
-            while curr_error - next_error > 0.001 and num_iter < 10:
+            while curr_error - next_error > 0.001 and num_iter < self.max_iter:
                 curr_error = next_error
                 dt = self.configuration.model.opt.timestep
                 vel2 = mink.solve_ik(self.configuration, self.tasks2, dt, self.solver, self.damping, self.ik_limits)
@@ -413,12 +426,15 @@ class RobotToSMPLXRetargeting:
 
     def extract_smplx_frame(self) -> Dict[str, Dict[str, np.ndarray]]:
         frame: Dict[str, Dict[str, np.ndarray]] = {}
-        for joint_name in self.smplx_joint_names:
-            body_id = self.body_name_to_id.get(joint_name)
+        for joint_name in self.smplx_joint_names: #notice: joint_name is from python lib "smplx.joint_names"
+            mjcf_name = self.resolve_smplx_body_name(joint_name)
+            #notice: body_name_to_id is constructed from smplx MJCF model of "smplx_humanoid.xml" file
+            body_id = self.body_name_to_id.get(mjcf_name) #body_id is the id of the body in smplx MJCF model
+            # print(f"joint_name: {joint_name}, mjcf_name: {mjcf_name}, body_id: {body_id}")
             if body_id is None:
                 continue
             pos = self.configuration.data.xpos[body_id].copy()
-            quat = self.configuration.data.xquat[body_id].copy()
+            quat = self.configuration.data.xquat[body_id].copy() #warning: 无法验证 quat is wxyz format
             frame[joint_name] = {"pos": pos, "rot": quat}
         return frame
 
@@ -441,9 +457,11 @@ class RobotToSMPLXRetargeting:
     # ------------------------------------------------------------------
     def prepare_betas(self, betas: Optional[np.ndarray]) -> np.ndarray:
         if betas is None:
+            print(f"betas is None, return np.zeros(self.num_betas, dtype=np.float64)")
             return np.zeros(self.num_betas, dtype=np.float64)
         betas = np.asarray(betas, dtype=np.float64)
         if betas.shape[0] != self.num_betas:
+            print(f"betas.shape[0] != self.num_betas, self.num_betas: {self.num_betas}")
             if betas.shape[0] < self.num_betas:
                 betas = np.pad(betas, (0, self.num_betas - betas.shape[0]), mode="constant")
             else:

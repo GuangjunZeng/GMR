@@ -70,7 +70,7 @@ def manual_downsample_smplx_data(smplx_data, body_model, smplx_output, down_samp
         single_full_body_pose = downsampled_full_body_pose[curr_frame]
         single_joints = downsampled_joints[curr_frame]
         joint_orientations = []
-        for i, joint_name in enumerate(joint_names):
+        for i, joint_name in enumerate(joint_names): #notice: joint_name顺序是标准的SMPLX模型中的顺序(from smplx.joint_names import JOINT_NAMES)
             if i == 0:
                 rot = R.from_rotvec(single_global_orient)
             else:
@@ -365,7 +365,7 @@ def process_single_npz_file(smplx_file_path, output_path, robot, SMPLX_FOLDER, n
                 fps_counter = 0
                 fps_start_time = current_time
             # Update task targets.
-            #notice: 这里的smplx_data并不再有原始npz文件的完整数据结构，它只包含单帧的数据。
+            #notice: 这里的smplx_data并不再有原始npz文件的完整数据结构，它只包含单帧的数据。而且单帧的数据结构也有变化(由manual_downsample_smplx_data()进行重构)
             smplx_data = smplx_data_frames[i]
             # retarget
             qpos = retarget.retarget(smplx_data)
@@ -403,7 +403,7 @@ def process_single_npz_file(smplx_file_path, output_path, robot, SMPLX_FOLDER, n
             "fps": aligned_fps,
             "root_pos": root_pos, 
             "root_rot": root_rot, #notice：这里的root_rot是xyzw格式
-            "dof_pos": dof_pos, 
+            "dof_pos": dof_pos,  #notice: dof_pos includes angle(一维) for all joints (robot joint从物理硬件上只能在一个维度旋转)
             "local_body_pos": local_body_pos,  #is none? # npz文件呢？ #没有手部信息吗？ #那怎么可视化如果不用前向运动学？ 
             "link_body_list": body_names,
         }

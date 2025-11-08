@@ -21,19 +21,25 @@ START_ROW = 0     # 0-based inclusive（默认第一行数据，已跳过header�
 END_ROW = None    # 0-based exclusive（默认处理到末尾）
 
 # ===== default SMPL-X "betas" parameter（from reference/010220.npz） =====
+# DEFAULT_BETAS = np.array(
+#     [
+#         0.63490343,
+#         0.22382046,
+#         -1.0249308,
+#         0.44071582,
+#         -0.9953945,
+#         -2.1473196,
+#         1.5268985,
+#         -0.18637267,
+#         2.4248314,
+#         1.888583,
+#     ],
+#     dtype=np.float32,
+# )
+
 DEFAULT_BETAS = np.array(
-    [
-        0.63490343,
-        0.22382046,
-        -1.0249308,
-        0.44071582,
-        -0.9953945,
-        -2.1473196,
-        1.5268985,
-        -0.18637267,
-        2.4248314,
-        1.888583,
-    ],
+    [ 0.4948395,  -0.59763855, -1.9920285,  -3.4295902,  -0.8790672,  -1.6168683,
+      1.1094068,   0.38612136,  1.5804356,   4.7509418, ],
     dtype=np.float32,
 )
 
@@ -270,6 +276,7 @@ def process_single_npz_file(npz_file_path, output_path, robot, SMPLX_FOLDER, gen
             os.makedirs(save_dir, exist_ok=True)
 
         
+        # high priority: doing retargeting frame by frame
         smplx_data_frames = []
         i = 0
         num_frames = root_pos.shape[0]  #rows
@@ -288,27 +295,37 @@ def process_single_npz_file(npz_file_path, output_path, robot, SMPLX_FOLDER, gen
             #warning：暂时无法验证这个fk计算是否完全正确
             
             
-            #? warning: ik table中g1 body的名称和lafan格式中的不完全一样？ 
-            # retarget: 调用 IK，将机器人姿态映射到 SMPL-X
-            retarget.retarget(robot_frame_data)
-            # 保存当帧 SMPLX 关节姿态
+            #warning: ik table中g1 body的名称和lafan格式中的不完全一样？ 
+            retarget.retarget(robot_frame_data) #qpos only contains joint angle information for joints
+            #save the current frame's SMPLX joint pos and rot
             smplx_data_frames.append(retarget.extract_smplx_frame())
+            #notice: smplx_data_frames includes dicts {body_name: {"pos": pos, "rot": quat}}
             
             i += 1
 
        
         betas_array = np.array(betas, dtype=np.float64, copy=False) if betas is not None else None
         smplx_params = retarget.frames_to_smplx_parameters(smplx_data_frames, betas=betas_array)
+        #? warning: 输出npz文件的body name需要哪种格式？
+        #? body name的顺序: self.configuration.data能不能提供顺序？ self.configuration传入的是xml配置文件，从中设置顺序？
+        #warning: body name/joint_name顺序需要的是标准的SMPLX模型中的顺序(from smplx.joint_names import JOINT_NAMES)
         
+        #gender, betas, pose_body(N, 63), pose_hand(N, 90), smpl_trans(N, 3), smpl_quat_xyzw(N, 4), pelvis_trans(N, 3), pelvis_quat_xyzw(N, 4)
+        #joints_local(N, 55, 3) 暂时不写入输出文件
+        #qpos的body rot是欧拉角表达形式，而pose_body和pose_hand需要的是三维向量的表达形式
+        #? notice: pose_hand and pose_body 是local rotation：分析manual_downsample_smplx_data
+
+        # pose_hand  
+        pose_hand = np.zeros((len(smplx_frames), 90), dtype=np.float64)
 
         np.savez(
             output_path,
-            betas=smplx_params["betas"],
-            pose_body=smplx_params["pose_body"],
-            root_orient=smplx_params["root_orient"],
-            trans=smplx_params["trans"],
             gender=np.array(gender),
-            mocap_frame_rate=np.array(motion_fps),
+            betas=smplx_params["betas"],
+            pose_body=smplx_params["pose_body"], 
+            pose_hand = pose_hand,
+            root_orient=smplx_params["root_orient"], 
+            trans=smplx_params["trans"]  
         )
         
         return True

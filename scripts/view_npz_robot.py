@@ -119,25 +119,54 @@ def print_root_details(root_pos: np.ndarray, root_quat: np.ndarray):
 
 
 def print_frame_preview(data: Dict[str, Any], num_frames: int = 3):
-    """打印前几帧的数据预览"""
-    print_separator("数据帧预览", "-", 80)
+    """打印第一帧的完整数据"""
+    print_separator("第一帧完整数据", "-", 80)
     
     joints = data.get('joints')
     root_pos = data.get('root_pos')
     root_quat = data.get('root_quat')
     
-    for frame_idx in range(min(num_frames, joints.shape[0])):
-        print(f"\n📍 第 {frame_idx} 帧:")
+    if joints is None or joints.shape[0] == 0:
+        print("❌ 没有关节数据")
+        return
+    
+    frame_idx = 0
+    print(f"\n📍 第 {frame_idx} 帧 (完整数据):\n")
+    
+    # 打印根位置
+    if root_pos is not None:
+        print("  根位置 (root_pos):")
+        print(f"    X: {root_pos[frame_idx, 0]:12.6f}")
+        print(f"    Y: {root_pos[frame_idx, 1]:12.6f}")
+        print(f"    Z: {root_pos[frame_idx, 2]:12.6f}")
+        print()
+    
+    # 打印根旋转（四元数）
+    if root_quat is not None:
+        print("  根旋转 (root_quat, xyzw格式):")
+        print(f"    X: {root_quat[frame_idx, 0]:12.6f}")
+        print(f"    Y: {root_quat[frame_idx, 1]:12.6f}")
+        print(f"    Z: {root_quat[frame_idx, 2]:12.6f}")
+        print(f"    W: {root_quat[frame_idx, 3]:12.6f}")
+        print()
+    
+    # 打印所有关节角度
+    print(f"  关节角度 (joints, 共 {joints.shape[1]} 个DOF):")
+    num_dofs = joints.shape[1]
+    
+    # 每行打印5个关节
+    for i in range(0, num_dofs, 5):
+        end_idx = min(i + 5, num_dofs)
+        joint_values = joints[frame_idx, i:end_idx]
         
-        if root_pos is not None:
-            print(f"  根位置: [{root_pos[frame_idx, 0]:8.4f}, {root_pos[frame_idx, 1]:8.4f}, {root_pos[frame_idx, 2]:8.4f}]")
+        # 打印索引号
+        indices_str = "    " + "  ".join([f"DOF[{j:2d}]" for j in range(i, end_idx)])
+        print(indices_str)
         
-        if root_quat is not None:
-            print(f"  根旋转: [{root_quat[frame_idx, 0]:8.4f}, {root_quat[frame_idx, 1]:8.4f}, "
-                  f"{root_quat[frame_idx, 2]:8.4f}, {root_quat[frame_idx, 3]:8.4f}]")
-        
-        print(f"  关节角度 (前5个): {joints[frame_idx, :5]}")
-        print(f"  关节角度 (后5个): {joints[frame_idx, -5:]}")
+        # 打印数值
+        values_str = "    " + "  ".join([f"{val:8.4f}" for val in joint_values])
+        print(values_str)
+        print()
 
 
 def check_data_validity(data: Dict[str, Any]):
