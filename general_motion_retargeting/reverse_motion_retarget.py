@@ -75,7 +75,7 @@ class RobotToSMPLXRetargeting:
             model_type="smplx",
             gender=gender,
             use_pca=False,
-        )
+        ) # smplx_model is from SMPLX_FEMALE/SMPLX_MALE/SMPLX_NEUTRAL.npz file
 
         self.smplx_joint_names = JOINT_NAMES[: len(self.smplx_model.parents)] #len(self.smplx_model.parents) = 关节数（由 parents 长度决定）
         self.smplx_name_to_idx = {name: i for i, name in enumerate(self.smplx_joint_names)}
@@ -169,10 +169,12 @@ class RobotToSMPLXRetargeting:
                     continue
 
                 robot_body, pos_weight, rot_weight, pos_offset, rot_offset = entry
-                self.robot_body_for_smplx[smplx_body] = robot_body     #key is the smplx body name, value is the robot body name
+                self.robot_body_for_smplx[smplx_body] = robot_body     #key is the smplx body name in ik table, value is the robot body name in ik table 
                 frame_name = self.resolve_smplx_body_name(smplx_body)  #notice: frame_name is body name in smplx MJCF format
                 self.pos_offsets[smplx_body] = np.asarray(pos_offset, dtype=np.float64)
-                self.rot_offsets[smplx_body] = np.asarray(rot_offset, dtype=np.float64)
+                self.rot_offsets[smplx_body] = R.from_quat(
+                    np.asarray(rot_offset, dtype=np.float64), scalar_first=True
+                )
                 # print(f"smplx_body: {smplx_body}, frame_name in the ik task: {frame_name}") 
                 
 
@@ -243,14 +245,14 @@ class RobotToSMPLXRetargeting:
         betas_array = self.prepare_betas(betas)
         pelvis_trans_list: List[np.ndarray] = []
         pelvis_quat_xyzw_list: List[np.ndarray] = []
-        pose_body_list: List[np.ndarray] = []
+        body_pose_list: List[np.ndarray] = []
 
-        for frame_joints in smplx_frames: #iterate through the joints data of each frame
+        for frame_joints in smplx_frames: #iterate through the joints data for each frame
             if self.smplx_root_name in frame_joints:
                 pelvis_pos = frame_joints[self.smplx_root_name]["pos"]
-                pelvis_rot = frame_joints[self.smplx_root_name]["rot"]  # wxyz format
+                pelvis_rot = frame_joints[self.smplx_root_name]["rot"]  #wxyz format: 关节的绝对旋转
                 pelvis_trans_list.append(pelvis_pos)
-                pelvis_quat_xyzw_list.append(R.from_quat(root_rot[[1, 2, 3, 0]]).as_rotvec()) #xyzw format
+                pelvis_quat_xyzw_list.append(pelvis_rot[[1, 2, 3, 0]]) #convert wxyz to xyzw format (quaternion, 4D)
             else:
                 pass
                 # trans_list.append(np.zeros(3, dtype=np.float64))
@@ -262,7 +264,8 @@ class RobotToSMPLXRetargeting:
             "betas": betas_array,
             "pelvis_trans": np.asarray(pelvis_trans_list, dtype=np.float64),
             "pelvis_quat_xyzw": np.asarray(pelvis_quat_xyzw_list, dtype=np.float64),
-            # "pose_body": np.asarray(body_pose_list, dtype=np.float64),
+            "pose_body": np.asarray(body_pose_list, dtype=np.float64),
+            "pose_hand": np.zeros((len(body_pose_list), 90), dtype=np.float64),
         }
 
     # ------------------------------------------------------------------
@@ -271,7 +274,9 @@ class RobotToSMPLXRetargeting:
      # high priority: using scale and offset to compute target pose of every body of smplx human, and update the (IK)task targets.
     def update_targets(self, robot_data: Dict[str, BodyPose], offset_to_ground: bool = True) -> None:
         robot_data = self.to_numpy(robot_data) #ensure that all data is in NumPy array format
-        robot_data = self.scale_robot_data(robot_data)  
+        robot_data = self.scale_robot_data(robot_data) #notice: robot_data is a dictionary, key is the robot body name, value is the BodyPose which contains pos and quat(wxyz)
+        robot_data = self.offset_robot_data(robot_data)
+        #warning： 没有验证这几步的计算是否正确？
         #warning: human_height_assumption is not used? 
 
         if not self._ground_offset_initialized: #self._ground_offset_initialized is false -> not self._ground_offset_initialized is true
@@ -294,27 +299,24 @@ class RobotToSMPLXRetargeting:
         if self.use_ik_match_table1:
             for smplx_body, task in self.smplx_body_to_task1.items():
                 #smplx_body is smplx body name only exist in ik table1 or table2
-                robot_body = self.robot_body_for_smplx.get(smplx_body) 
-                pose = robot_data.get(robot_body)
+                # robot_body = self.robot_body_for_smplx.get(smplx_body) 
+                # pose = robot_data.get(robot_body)
+                pose = robot_data.get(smplx_body) #notice: self.offset_robot_data将robot_data中的机器人body name转换为smplx body name
                 if pose is None:
                     print(f"During the update_targets() function, no pose found for the robot body: {robot_body}")
                     continue
-                target_pos, target_rot = self.compute_target_pose(smplx_body, pose)
-                #warning: pose is already the target pose ?
-                # target_pos ,target_rot = pose.pos, pose.rot
+                target_pos, target_rot = pose.pos, pose.rot
                 task.set_target(mink.SE3.from_rotation_and_translation(mink.SO3(target_rot), target_pos))
 
         if self.use_ik_match_table2:
             for smplx_body, task in self.smplx_body_to_task2.items():
-                robot_body = self.robot_body_for_smplx.get(smplx_body)
-                #notice: robot_data is a dictionary, key is the robot body name, value is the BodyPose which contains pos and quat(wxyz)
-                pose = robot_data.get(robot_body) 
+                # robot_body = self.robot_body_for_smplx.get(smplx_body)
+                # pose = robot_data.get(robot_body) 
+                pose = robot_data.get(smplx_body) 
                 if pose is None:
                     print(f"During the update_targets() function, no pose found for the robot body: {robot_body}")
                     continue
-                # target_pos, target_rot = self.compute_target_pose(smplx_body, pose)
-                #warning: pose is already the target pose ?
-                target_pos ,target_rot = pose.pos, pose.rot
+                target_pos, target_rot = pose.pos, pose.rot
                 task.set_target(mink.SE3.from_rotation_and_translation(mink.SO3(target_rot), target_pos))
 
     def retarget(self, robot_data: Dict[str, BodyPose], offset_to_ground: bool = False) -> np.ndarray:
@@ -392,6 +394,40 @@ class RobotToSMPLXRetargeting:
             scaled[body_name] = BodyPose(pos=scaled_pos, rot=pose.rot)
 
         return scaled
+ 
+    # high priority: offset the robot data according to the IK config (eg: g1_to_smplx.json)
+    def offset_robot_data(self, robot_data: Dict[str, BodyPose]) -> Dict[str, BodyPose]:
+        offset_data: Dict[str, BodyPose] = {}
+        for smplx_body, robot_body in self.robot_body_for_smplx.items(): #notice： robot_body_for_smplx is dict, key is the smplx body name in ik table, value is the robot body name in ik table 
+            pose = robot_data.get(robot_body)
+            if pose is None:
+                print(f"During offset_robot_data(), no pose found for robot body: {robot_body}")
+                continue
+            
+            pos, quat = pose.pos, pose.rot  # pos: position of body; quat: quaternion of body (wxyz format)
+            offset_data[smplx_body] = BodyPose(pos=pos, rot=quat)  # initialize with original values
+            
+            # apply rotation offset first
+            # notice: quat is from robot_data, rot_offsets is from ik config (eg: g1_to_smplx.json)
+            rot_offset = self.rot_offsets.get(smplx_body)
+            if rot_offset is not None:
+                updated_quat = (R.from_quat(quat, scalar_first=True) * rot_offset).as_quat(scalar_first=True)
+            else:
+                print(f"rot_offset is None for smplx body: {smplx_body}")
+                continue
+            offset_data[smplx_body].rot = updated_quat
+            
+            # apply position offset
+            local_offset = self.pos_offsets.get(smplx_body)  # notice: pos_offsets is from ik config (eg: g1_to_smplx.json)
+            if local_offset is None:
+                print(f"pos_offset is None for smplx body: {smplx_body}")
+                continue
+            # compute the global position offset using the updated rotation
+            global_pos_offset = R.from_quat(updated_quat, scalar_first=True).apply(local_offset)  # R is a matrix, local_offset is a vector, global_pos_offset is a vector
+            # 将全局位置偏移加到原始位置上
+            offset_data[smplx_body].pos = pos + global_pos_offset
+
+        return offset_data
 
     # high priority: offset the robot data to the ground (before ik retargeting)
     def apply_ground_offset(self, body_poses: Dict[str, BodyPose]) -> Dict[str, BodyPose]:
@@ -409,20 +445,19 @@ class RobotToSMPLXRetargeting:
     def set_ground_offset(self, ground_offset: float) -> None:
         self.ground_offset = float(ground_offset)
 
-    def compute_target_pose(self, smplx_joint: str, robot_pose: BodyPose) -> tuple[np.ndarray, np.ndarray]:
-        pos_offset = self.pos_offsets.get(smplx_joint, np.zeros(3))
-        rot_offset = self.rot_offsets.get(smplx_joint)
+    # def compute_target_pose(self, smplx_joint: str, robot_pose: BodyPose) -> tuple[np.ndarray, np.ndarray]:
+    #     pos_offset = self.pos_offsets.get(smplx_joint, np.zeros(3))
+    #     rot_offset = self.rot_offsets.get(smplx_joint)
 
-        robot_R = R.from_quat(robot_pose.rot[[1, 2, 3, 0]])
-        if rot_offset is not None:
-            offset_R = R.from_quat(rot_offset[[1, 2, 3, 0]])
-            smplx_R = robot_R * offset_R.inv()
-        else:
-            smplx_R = robot_R
+    #     robot_R = R.from_quat(robot_pose.rot, scalar_first=True)
+    #     if rot_offset is not None:
+    #         smplx_R = robot_R * rot_offset
+    #     else:
+    #         smplx_R = robot_R
 
-        smplx_pos = robot_pose.pos - robot_R.apply(pos_offset)
-        smplx_rot = smplx_R.as_quat(scalar_first=True)
-        return smplx_pos, smplx_rot
+    #     smplx_pos = smplx_R.apply(pos_offset) + robot_pose.pos
+    #     smplx_rot = smplx_R.as_quat(scalar_first=True)
+    #     return smplx_pos, smplx_rot
 
     def extract_smplx_frame(self) -> Dict[str, Dict[str, np.ndarray]]:
         frame: Dict[str, Dict[str, np.ndarray]] = {}
@@ -435,6 +470,7 @@ class RobotToSMPLXRetargeting:
                 continue
             pos = self.configuration.data.xpos[body_id].copy()
             quat = self.configuration.data.xquat[body_id].copy() #warning: 无法验证 quat is wxyz format
+            #xquat是绝对旋转（源码engine_core_smooth.c可以证明)
             frame[joint_name] = {"pos": pos, "rot": quat}
         return frame
 
@@ -468,29 +504,33 @@ class RobotToSMPLXRetargeting:
                 betas = betas[: self.num_betas]
         return betas
 
+    # high priority: compute the local rotation of each body joint
     def compute_local_rotations(
         self,
         frame_joints: Dict[str, Dict[str, np.ndarray]],
     ) -> np.ndarray:
         body_pose = np.zeros(63, dtype=np.float64)
         global_rots: Dict[str, R] = {}
-
+        #notice: frame_joints: {body_names: {"pos": pos, "rot": quat}} for one frame
         for joint_name, joint_data in frame_joints.items():
             if joint_name not in self.smplx_name_to_idx:
+                print(f"joint_name: {joint_name} not in self.smplx_name_to_idx")
                 continue
-            rot_quat = joint_data["rot"]
-            global_rots[joint_name] = R.from_quat(rot_quat[[1, 2, 3, 0]])
+            rot_quat = joint_data["rot"] #wxyz  
+            global_rots[joint_name] = R.from_quat(rot_quat[[1, 2, 3, 0]]) #xyzw format
 
-        for i in range(1, min(22, len(self.smplx_joint_names))):
+        for i in range(1, min(22, len(self.smplx_joint_names))): #notice: self.smplx_joint_names is from python lib "smplx.joint_names"
             joint_name = self.smplx_joint_names[i]
-            parent_idx = self.smplx_parents[i]
+            parent_idx = self.smplx_parents[i] 
             parent_name = self.smplx_joint_names[parent_idx]
             if joint_name not in global_rots or parent_name not in global_rots:
+                print(f"joint_name: {joint_name} or parent_name: {parent_name} not in global_rots")
                 continue
             parent_R = global_rots[parent_name]
             joint_R = global_rots[joint_name]
-            local_R = parent_R.inv() * joint_R
+            local_R = parent_R.inv() * joint_R 
             body_pose[(i - 1) * 3 : (i - 1) * 3 + 3] = local_R.as_rotvec()
+            #body_pose doesn't include pelvis!!!
 
         return body_pose
 

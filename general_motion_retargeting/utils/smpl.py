@@ -14,11 +14,13 @@ def load_smpl_file(smpl_file):
 def load_smplx_file(smplx_file, smplx_body_model_path):
     # smplx_data is the whole content of a single npz file of smplx human motion sequence
     smplx_data = np.load(smplx_file, allow_pickle=True) 
+    num_betas = int(smplx_data["num_betas"]) if "num_betas" in smplx_data else None
     body_model = smplx.create(
         smplx_body_model_path,
         "smplx",
         gender=str(smplx_data["gender"]),
         use_pca=False,
+        num_betas=num_betas,
     )
     # print(smplx_data["pose_body"].shape)
     # print(smplx_data["betas"].shape)
@@ -26,21 +28,66 @@ def load_smplx_file(smplx_file, smplx_body_model_path):
     # print(smplx_data["trans"].shape)
     
     num_frames = smplx_data["pose_body"].shape[0]
+
+    #warning: 已经修改，和GMR_my已经不同
     #smplx_output还是用smplx_data来计算
-    smplx_output = body_model(
-        betas=torch.tensor(smplx_data["betas"]).float().view(1, -1), # (16,)
-        global_orient=torch.tensor(smplx_data["root_orient"]).float(), # (N, 3)
-        body_pose=torch.tensor(smplx_data["pose_body"]).float(), # (N, 63) = (N, 21*3)
-        transl=torch.tensor(smplx_data["trans"]).float(), # (N, 3)
-        left_hand_pose=torch.zeros(num_frames, 45).float(),
-        right_hand_pose=torch.zeros(num_frames, 45).float(),
-        jaw_pose=torch.zeros(num_frames, 3).float(),
-        leye_pose=torch.zeros(num_frames, 3).float(),
-        reye_pose=torch.zeros(num_frames, 3).float(),
-        # expression=torch.zeros(num_frames, 10).float(),
-        return_full_pose=True,
-    )
+    betas_tensor = torch.tensor(smplx_data["betas"]).float()
+    if betas_tensor.ndim == 1:
+        betas_tensor = betas_tensor.unsqueeze(0)
+    if betas_tensor.shape[0] == 1 and num_frames > 1:
+        betas_tensor = betas_tensor.expand(num_frames, -1)
+    elif betas_tensor.shape[0] != num_frames:
+        betas_tensor = betas_tensor.expand(num_frames, -1)
+
+    # print(f"[load_smplx_file] num_frames: {num_frames}")
+    # print(f"[load_smplx_file] betas_tensor shape: {betas_tensor.shape}")
+    # print(f"[load_smplx_file] root_orient shape: {smplx_data['root_orient'].shape}")
+    # print(f"[load_smplx_file] body_pose shape: {smplx_data['pose_body'].shape}")
+    # print(f"[load_smplx_file] transl shape: {smplx_data['trans'].shape}")
+
+    expression_dim = getattr(body_model, "num_expression_coeffs", 10)
+    expression_tensor = torch.zeros(num_frames, expression_dim).float()
+
+    try:
+        smplx_output = body_model(
+            betas=betas_tensor, # (N, num_betas)
+            global_orient=torch.tensor(smplx_data["root_orient"]).float(), # (N, 3)
+            body_pose=torch.tensor(smplx_data["pose_body"]).float(), # (N, 63) = (N, 21*3) 
+            transl=torch.tensor(smplx_data["trans"]).float(), # (N, 3) #notice: transl 什么含义？
+            left_hand_pose=torch.zeros(num_frames, 45).float(), #notice: raw reference human data (npz file) does not contain hand pose information
+            right_hand_pose=torch.zeros(num_frames, 45).float(),
+            jaw_pose=torch.zeros(num_frames, 3).float(), 
+            leye_pose=torch.zeros(num_frames, 3).float(), 
+            reye_pose=torch.zeros(num_frames, 3).float(),
+            expression=expression_tensor,
+            # expression=torch.zeros(num_frames, 10).float(),
+            return_full_pose=True,
+        )
+    except Exception as e:
+        print("[load_smplx_file] Failed to run body_model forward")
+        print(f"  betas_tensor shape: {betas_tensor.shape}")
+        print(f"  root_orient tensor shape: {torch.tensor(smplx_data['root_orient']).float().shape}")
+        print(f"  body_pose tensor shape: {torch.tensor(smplx_data['pose_body']).float().shape}")
+        print(f"  transl tensor shape: {torch.tensor(smplx_data['trans']).float().shape}")
+        raise
+
+    # print(f"📁 文件包含的键: {list(smplx_data.keys())}")
+    # print("root_orient in smplx_data: ", smplx_data["root_orient"])
+    # print("smplx_output.body_pose: ", smplx_output.body_pose) #
+    # print("trans in smplx_data: ", smplx_data["trans"])
+    # print(" smplx_output.full_pose.shape: ", smplx_output.full_pose.shape) #所有关节的旋转参数：global_orient(3) + body_pose(63) + hand_pose(90) + jaw_pose(3) + leye_pose(3) + reye_pose(3) = 165
+    # # 设置NumPy打印选项，显示完整数据
+    # np.set_printoptions(threshold=np.inf, linewidth=200, suppress=True)
+    # print("smplx_output.full_pose shape: ", smplx_output.full_pose.shape)
+    # print("smplx_output.full_pose (first 3 frames):")
+    # print(smplx_output.full_pose[:3].detach().cpu().numpy())
+    # # 恢复默认打印设置
+    # np.set_printoptions(threshold=1000, linewidth=75, suppress=False)
     
+    # print("smplx_output.left_hand_pose: ", smplx_output.left_hand_pose) #all zeros
+    # print("smplx_output.joints: ", smplx_output.joints) 
+    # print("smplx_output.joints.shape: ", smplx_output.joints.shape)
+
     # high priority: get human height from betas
     if len(smplx_data["betas"].shape)==1:
         human_height = 1.66 + 0.1 * smplx_data["betas"][0]

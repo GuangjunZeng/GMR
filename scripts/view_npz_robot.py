@@ -3,6 +3,7 @@
 
 # python3 scripts/view_npz_robot.py ../server3_data/locomotion/robot/ik_based/npz/000001.npz
 
+# python3 scripts/view_npz_robot.py ../data/locomotion/robot/ik_based/npz/000001.npz
 
 import argparse
 import numpy as np

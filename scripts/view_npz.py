@@ -13,6 +13,8 @@ import os
 # 文件包含的键: ['gender', 'betas', 'pose_body', 'pose_hand', 'smpl_trans', 'smpl_quat_xyzw', 'pelvis_trans', 'pelvis_quat_xyzw', 'joints_local', 'fps']
 #gender, betas, pose_body, 
 
+# raw DATASET npz file: ['gender', 'surface_model_type', 'mocap_frame_rate', 'mocap_time_length', 'markers_latent', 'latent_labels', 'markers_latent_vids', 'trans', 'poses', 'betas', 'num_betas', 'root_orient', 'pose_body', 'pose_hand', 'pose_jaw', 'pose_eye', 'markers', 'labels', 'markers_obs', 'labels_obs', 'markers_sim', 'marker_meta', 'num_markers']
+
 # python scripts/view_npz.py  ../server3_data/locomotion/human/ik_based/npz/000005.npz
 
 def view_npz_data(npz_path, show_preview=True, save_csv=False, show_first_frame=False):
@@ -94,6 +96,23 @@ def view_npz_data(npz_path, show_preview=True, save_csv=False, show_first_frame=
             # 如果是关节名称
             if key == 'joint_names':
                 print(f"   关节名称: {list(value)}")
+
+            if key == 'pose_body':
+                # print(f"    pose_body: {value}")
+                np.set_printoptions(threshold=np.inf, linewidth=200, suppress=True)
+                print("pose_body (first 5 frames):")
+                print(value[:5])
+            if key == "pelvis_trans":
+                # print(f"    pelvis_trans: {value}")
+                np.set_printoptions(threshold=np.inf, linewidth=200, suppress=True)
+                print("pelvis_trans (first 5 frames):")
+                print(value[:5])
+            if key == "pelvis_quat_xyzw":
+                # print(f"    pelvis_quat_xyzw: {value}")
+                np.set_printoptions(threshold=np.inf, linewidth=200, suppress=True)
+                print("pelvis_quat_xyzw (first 5 frames):")
+                print(value[:5])
+            
         else:
             print(f"   值: {value}")
         print()
@@ -125,19 +144,19 @@ def main():
     
     
     from smplx.joint_names import JOINT_NAMES
-    print("SMPL-X Body Joints (pose_body):")
-    for i in range(1, 22):  # 跳过索引 0 的 pelvis
-        print(f"  pose_body[{(i-1)*3}:{(i-1)*3+3}] → {JOINT_NAMES[i]}")
+    # print("SMPL-X Body Joints (pose_body):")
+    # for i in range(1, 22):  # 跳过索引 0 的 pelvis
+    #     print(f"  pose_body[{(i-1)*3}:{(i-1)*3+3}] → {JOINT_NAMES[i]}")
 
-    print("\nSMPL-X Hand Joints (pose_hand):")
-    # 左手
-    for i in range(15):
-        joint_idx = 22 + i  # 手指从索引 22 开始
-        print(f"  pose_hand[{i*3}:{i*3+3}] → {JOINT_NAMES[joint_idx]} (左手)")
-    # 右手
-    for i in range(15):
-        joint_idx = 37 + i
-        print(f"  pose_hand[{45+i*3}:{45+i*3+3}] → {JOINT_NAMES[joint_idx]} (右手)")
+    # print("\nSMPL-X Hand Joints (pose_hand):")
+    # # 左手
+    # for i in range(15):
+    #     joint_idx = 22 + i  # 手指从索引 22 开始
+    #     print(f"  pose_hand[{i*3}:{i*3+3}] → {JOINT_NAMES[joint_idx]} (左手)")
+    # # 右手
+    # for i in range(15):
+    #     joint_idx = 37 + i
+    #     print(f"  pose_hand[{45+i*3}:{45+i*3+3}] → {JOINT_NAMES[joint_idx]} (右手)")
 
 if __name__ == "__main__":
     main()

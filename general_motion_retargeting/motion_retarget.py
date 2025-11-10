@@ -306,8 +306,8 @@ class GeneralMotionRetargeting:
     def offset_human_data(self, human_data, pos_offsets, rot_offsets):
         """the pos offsets are applied in the local frame"""
         offset_human_data = {}
-        for body_name in human_data.keys():
-            pos, quat = human_data[body_name]           #pos: position of joint; quat: quaternion of joint;
+        for body_name in human_data.keys():   #notice: quat: 绝对旋转，不是相对旋转  
+            pos, quat = human_data[body_name] #pos: position of joint; quat: quaternion of joint;
             offset_human_data[body_name] = [pos, quat]  
             # apply rotation offset first
             # notice: quat is from human_data, rot_offsets is from ik config (eg: smplx_to_g1.json)
@@ -346,7 +346,7 @@ class GeneralMotionRetargeting:
 
     def set_ground_offset(self, ground_offset):
         self.ground_offset = ground_offset
-        print(f"Ground offset set to: {self.ground_offset}")
+        # print(f"Ground offset set to: {self.ground_offset}")
 
     # high priority: offset the human data to the ground
     def apply_ground_offset(self, human_data): #human_data是一帧的数据

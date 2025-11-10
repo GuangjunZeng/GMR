@@ -9,7 +9,7 @@ import math
 import numpy as np
 from rich import print
 
-from general_motion_retargeting import RobotToSMPLXRetargeting, load_robot_motion
+from general_motion_retargeting import RobotToSMPLXRetargeting, load_robot_motion, RobotKinematics
 from general_motion_retargeting.params import REVERSE_IK_CONFIG_DICT
 
 
@@ -291,12 +291,23 @@ def process_single_npz_file(npz_file_path, output_path, robot, SMPLX_FOLDER, gen
                 dof_pos[i],
             )
             # 计算机器人各 body 的世界姿态 (FK)
-            robot_frame_data = retarget.robot_kinematics.forward_kinematics(qpos)  #输入和输出都不含有手部part的信息
+            robot_frame_data = retarget.robot_kinematics.forward_kinematics(qpos)  
             #warning：暂时无法验证这个fk计算是否完全正确
+
+            if i == 1:
+                test_qpos = retarget.robot_kinematics.data.qpos.copy()
+                test_xpos = retarget.robot_kinematics.data.xpos.copy()
+                test_xquat = retarget.robot_kinematics.data.xquat.copy()
+                # print(f"test_qpos shape: {test_qpos.shape}")
+                # print(f"test_qpos: {test_qpos}")
+                # print(f"test_xpos shape: {test_xpos.shape}")
+                # print(f"test_xpos: {test_xpos}")
+                # print(f"test_xquat shape: {test_xquat.shape}")
+                # print(f"test_xquat: {test_xquat}")
             
             
-            #warning: ik table中g1 body的名称和lafan格式中的不完全一样？ 
-            retarget.retarget(robot_frame_data) #qpos only contains joint angle information for joints
+            #warning: ik table中g1 body的名称和lafan格式中的不完全一样？ 输出文件没有body name,应该不影响
+            retarget.retarget(robot_frame_data) 
             #save the current frame's SMPLX joint pos and rot
             smplx_data_frames.append(retarget.extract_smplx_frame())
             #notice: smplx_data_frames includes dicts {body_name: {"pos": pos, "rot": quat}}
@@ -306,26 +317,26 @@ def process_single_npz_file(npz_file_path, output_path, robot, SMPLX_FOLDER, gen
        
         betas_array = np.array(betas, dtype=np.float64, copy=False) if betas is not None else None
         smplx_params = retarget.frames_to_smplx_parameters(smplx_data_frames, betas=betas_array)
-        #? warning: 输出npz文件的body name需要哪种格式？
         #? body name的顺序: self.configuration.data能不能提供顺序？ self.configuration传入的是xml配置文件，从中设置顺序？
-        #warning: body name/joint_name顺序需要的是标准的SMPLX模型中的顺序(from smplx.joint_names import JOINT_NAMES)
+        #warning: body name/joint_name顺序需要的是标准的SMPLX模型中的顺序(from smplx.joint_names import JOINT_NAMES). 在extract_smplx_frame()中是按照JOINT_NAMES的顺序提取的.
         
         #gender, betas, pose_body(N, 63), pose_hand(N, 90), smpl_trans(N, 3), smpl_quat_xyzw(N, 4), pelvis_trans(N, 3), pelvis_quat_xyzw(N, 4)
         #joints_local(N, 55, 3) 暂时不写入输出文件
         #qpos的body rot是欧拉角表达形式，而pose_body和pose_hand需要的是三维向量的表达形式
-        #? notice: pose_hand and pose_body 是local rotation：分析manual_downsample_smplx_data
 
-        # pose_hand  
-        pose_hand = np.zeros((len(smplx_frames), 90), dtype=np.float64)
+        #notice: pose_body 是local rotation (derived from manual_downsample_smplx_data())
+        #notice: pose_hand 是local rotation, set all zeros.
+
+        #smpl_trans 和 pelvis_trans之间的关系可以看000000.npz文件生成的代码
 
         np.savez(
             output_path,
             gender=np.array(gender),
             betas=smplx_params["betas"],
             pose_body=smplx_params["pose_body"], 
-            pose_hand = pose_hand,
-            root_orient=smplx_params["root_orient"], 
-            trans=smplx_params["trans"]  
+            pose_hand=smplx_params["pose_hand"],
+            pelvis_trans=smplx_params["pelvis_trans"],
+            pelvis_quat_xyzw=smplx_params["pelvis_quat_xyzw"],
         )
         
         return True
@@ -459,7 +470,7 @@ if __name__ == "__main__":
     else:
         betas = np.array(args.betas, dtype=np.float64)
     
-    print(f"Actual betas parameter setting: {betas.tolist()}")
+    # print(f"Actual betas parameter setting: {betas.tolist()}")
 
     # 检查是否使用批量处理模式
     if args.csv_file and args.batch_save_path:

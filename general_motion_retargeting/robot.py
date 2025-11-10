@@ -34,6 +34,46 @@ class RobotKinematics:
         self._body_names: List[str] = []
         for body_id in range(self.model.nbody):
             name = mj.mj_id2name(self.model, mj.mjtObj.mjOBJ_BODY, body_id)
+            print(f"In init, RobotKinematics: body_id: {body_id}, body_name: {name}")
+            # In init, RobotKinematics: body_id: 0, body_name: world
+            # In init, RobotKinematics: body_id: 1, body_name: pelvis
+            # In init, RobotKinematics: body_id: 2, body_name: left_hip_pitch_link
+            # In init, RobotKinematics: body_id: 3, body_name: left_hip_roll_link
+            # In init, RobotKinematics: body_id: 4, body_name: left_hip_yaw_link
+            # In init, RobotKinematics: body_id: 5, body_name: left_knee_link
+            # In init, RobotKinematics: body_id: 6, body_name: left_ankle_pitch_link
+            # In init, RobotKinematics: body_id: 7, body_name: left_ankle_roll_link
+            # In init, RobotKinematics: body_id: 8, body_name: left_toe_link
+            # In init, RobotKinematics: body_id: 9, body_name: pelvis_contour_link
+            # In init, RobotKinematics: body_id: 10, body_name: right_hip_pitch_link
+            # In init, RobotKinematics: body_id: 11, body_name: right_hip_roll_link
+            # In init, RobotKinematics: body_id: 12, body_name: right_hip_yaw_link
+            # In init, RobotKinematics: body_id: 13, body_name: right_knee_link
+            # In init, RobotKinematics: body_id: 14, body_name: right_ankle_pitch_link
+            # In init, RobotKinematics: body_id: 15, body_name: right_ankle_roll_link
+            # In init, RobotKinematics: body_id: 16, body_name: right_toe_link
+            # In init, RobotKinematics: body_id: 17, body_name: waist_yaw_link
+            # In init, RobotKinematics: body_id: 18, body_name: waist_roll_link
+            # In init, RobotKinematics: body_id: 19, body_name: torso_link
+            # In init, RobotKinematics: body_id: 20, body_name: head_link
+            # In init, RobotKinematics: body_id: 21, body_name: head_mocap
+            # In init, RobotKinematics: body_id: 22, body_name: imu_in_torso
+            # In init, RobotKinematics: body_id: 23, body_name: left_shoulder_pitch_link
+            # In init, RobotKinematics: body_id: 24, body_name: left_shoulder_roll_link
+            # In init, RobotKinematics: body_id: 25, body_name: left_shoulder_yaw_link
+            # In init, RobotKinematics: body_id: 26, body_name: left_elbow_link
+            # In init, RobotKinematics: body_id: 27, body_name: left_wrist_roll_link
+            # In init, RobotKinematics: body_id: 28, body_name: left_wrist_pitch_link
+            # In init, RobotKinematics: body_id: 29, body_name: left_wrist_yaw_link
+            # In init, RobotKinematics: body_id: 30, body_name: left_rubber_hand
+            # In init, RobotKinematics: body_id: 31, body_name: right_shoulder_pitch_link
+            # In init, RobotKinematics: body_id: 32, body_name: right_shoulder_roll_link
+            # In init, RobotKinematics: body_id: 33, body_name: right_shoulder_yaw_link
+            # In init, RobotKinematics: body_id: 34, body_name: right_elbow_link
+            # In init, RobotKinematics: body_id: 35, body_name: right_wrist_roll_link
+            # In init, RobotKinematics: body_id: 36, body_name: right_wrist_pitch_link
+            # In init, RobotKinematics: body_id: 37, body_name: right_wrist_yaw_link
+            # In init, RobotKinematics: body_id: 38, body_name: right_rubber_hand
             self._body_names.append(name if name is not None else "")
 
     @property
@@ -82,25 +122,26 @@ class RobotKinematics:
 
         #mark：如果将qpos直接赋值给self.data.qpos，则self.data.qpos会断开与 MuJoCo C 结构体的连接
         self.data.qpos[:] = qpos #notice：self.data是MjData 对象，存储模型的状态信息
-        mj.mj_forward(self.model, self.data) #warning：没有看过这个函数的源码
+        mj.mj_forward(self.model, self.data) #warning：源码复杂，不好直接检查。
         #less /home/retarget/workbench/mujoco_source/src/engine/engine_forward.c
 
         poses: Dict[str, BodyPose] = {} #define "poses", key is the str, value is the BodyPose which contains pos and quat
-        for body_id, body_name in enumerate(self._body_names):
+        for body_id, body_name in enumerate(self._body_names): #enumerate() ，可以接受一个可迭代对象（如list、tuple、string等），并返回一个枚举对象包含索引和对应的值
+            # print(f"body_id: {body_id}, body_name: {body_name}")
             if not body_name:
                 continue
             pos = self.data.xpos[body_id].copy()
-            quat = self.data.xquat[body_id].copy()  #warning：暂时无法验证是 wxyz 顺序
+            quat = self.data.xquat[body_id].copy()  #wxyz顺序 (从源码engine_util_spatial.c中可以证明)
             poses[body_name] = BodyPose(pos=pos, rot=quat)
         return poses
 
-    def forward_kinematics_sequence(self, qpos_sequence: np.ndarray) -> List[Dict[str, BodyPose]]:
-        """Run forward kinematics for a batch of ``qpos`` vectors."""
+    # def forward_kinematics_sequence(self, qpos_sequence: np.ndarray) -> List[Dict[str, BodyPose]]:
+    #     """Run forward kinematics for a batch of ``qpos`` vectors."""
 
-        poses: List[Dict[str, BodyPose]] = []
-        for frame_qpos in qpos_sequence:
-            poses.append(self.forward_kinematics(frame_qpos))
-        return poses 
+    #     poses: List[Dict[str, BodyPose]] = []
+    #     for frame_qpos in qpos_sequence:
+    #         poses.append(self.forward_kinematics(frame_qpos))
+    #     return poses 
 
 
 __all__ = ["BodyPose", "RobotKinematics"]

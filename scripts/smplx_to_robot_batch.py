@@ -21,7 +21,10 @@ START_ROW = 0     # 0-based inclusive（默认第一行数据，已跳过header�
 END_ROW = None    # 0-based exclusive（默认处理到末尾）
 
 #运行指令:
-# python scripts/smplx_to_robot.py --csv_file ../data/locomotion/manifest_raw.csv --batch_save_path ../data/locomotion/robot/ik_based/pkl/   --robot unitree_g1 --no_visualize --num_threads 150
+# python scripts/smplx_to_robot_batch.py --csv_file ../data/locomotion/manifest_raw.csv --batch_save_path ../data/locomotion/robot/ik_based/pkl/   --robot unitree_g1 --no_visualize --num_threads 1 --start_row 13611
+
+#isaac4090: 
+# python scripts/smplx_to_robot_batch.py --csv_file ../server3_data/locomotion/manifest_raw.csv --batch_save_path ../data/locomotion/robot/ik_based/pkl/   --robot unitree_g1 --no_visualize --num_threads 1 --end_row 6
 
 # ===== CPU 限制（用于全局限制 CPU 占用比例） =====
 def cap_cpu_affinity_by_percent(percent):
@@ -51,11 +54,16 @@ def manual_downsample_smplx_data(smplx_data, body_model, smplx_output, down_samp
     
     # Get original data
     num_frames = smplx_data["pose_body"].shape[0]
+    #notice: smplx_output.global_orient is the root_orient 
     global_orient = smplx_output.global_orient.squeeze() #root_orient
+    #notice: smplx_output.full_pose is the rotation of all controllable body joints (55*3 dimensions)
+    #notice: full_body_pose/smplx_output.full_pose中数据顺序: global_orient(3) + body_pose(63) + hand_pose(90) + jaw_pose(3) + leye_pose(3) + reye_pose(3) -> (N, 55, 3)
     full_body_pose = smplx_output.full_pose.reshape(num_frames, -1, 3) #full_pose是SMPLX模型自带的一个参量
+    print("In manual_downsample_smplx_data: full_body_pose shape: ", full_body_pose.shape) #reshape后的shape: (N, 55, 3)
+    #notice: smplx_output.joints is the 3D position 绝对位置 of all joints [N, 127, 3]
     joints = smplx_output.joints.detach().numpy().squeeze() #joints是SMPLX模型自带的一个参量: 3D位置
     joint_names = JOINT_NAMES[: len(body_model.parents)] #parents是SMPLX模型自带的一个参量
-    parents = body_model.parents
+    parents = body_model.parents # body_model is from SMPLX_FEMALE/SMPLX_MALE/SMPLX_NEUTRAL.npz file
     
     # Downsample by taking every down_sample-th frame
     downsampled_global_orient = global_orient[::down_sample]
@@ -67,12 +75,12 @@ def manual_downsample_smplx_data(smplx_data, body_model, smplx_output, down_samp
     for curr_frame in range(len(downsampled_global_orient)):
         result = {}
         single_global_orient = downsampled_global_orient[curr_frame]
-        single_full_body_pose = downsampled_full_body_pose[curr_frame]
+        single_full_body_pose = downsampled_full_body_pose[curr_frame] #notice: single_full_body_pose是当前帧所有关节的旋转参数
         single_joints = downsampled_joints[curr_frame]
         joint_orientations = []
         for i, joint_name in enumerate(joint_names): #notice: joint_name顺序是标准的SMPLX模型中的顺序(from smplx.joint_names import JOINT_NAMES)
-            if i == 0:
-                rot = R.from_rotvec(single_global_orient)
+            if i == 0: #pelvis的旋转对象是global_orient
+                rot = R.from_rotvec(single_global_orient) #pelvis的旋转对象
             else:
                 #该关节的世界旋转
                 rot = joint_orientations[parents[i]] * R.from_rotvec(
@@ -80,13 +88,56 @@ def manual_downsample_smplx_data(smplx_data, body_model, smplx_output, down_samp
                 )
             joint_orientations.append(rot)
             result[joint_name] = (single_joints[i], rot.as_quat(scalar_first=True))
+            #rot.as_quat(scalar_first=True)   # → [w, x, y, z]
+            #rot.as_quat(scalar_first=False)  # → [x, y, z, w]
+
         smplx_data_frames.append(result)
+    
+    # ===== Verification: Test compute_local_rotations =====
+    # Validate that compute_local_rotations can correctly recover local rotations
+    print("\n[Verification] Testing compute_local_rotations correctness:")
+    for test_frame_idx in range(0, min(11, len(smplx_data_frames))):  # check frame 0-10
+        frame_data = smplx_data_frames[test_frame_idx]
+        
+        # Compute local rotations using the function to test
+        global_rots = {}
+        for joint_name, (pos, quat_wxyz) in frame_data.items():
+            global_rots[joint_name] = R.from_quat(quat_wxyz[[1, 2, 3, 0]])  # wxyz -> xyzw
+        
+        computed_body_pose = np.zeros(63, dtype=np.float64)
+        for i in range(1, min(22, len(joint_names))):
+            joint_name = joint_names[i]
+            parent_idx = parents[i]
+            parent_name = joint_names[parent_idx] # joint_names is from python lib "smplx.joint_names" JOINT_NAMES
+            if joint_name in global_rots and parent_name in global_rots:
+                parent_R = global_rots[parent_name]
+                joint_R = global_rots[joint_name]
+                local_R = parent_R.inv() * joint_R
+                computed_body_pose[(i - 1) * 3 : (i - 1) * 3 + 3] = local_R.as_rotvec()
+        
+        # Compare with ground truth
+        ground_truth_tensor = downsampled_full_body_pose[test_frame_idx][1:22]  # Skip pelvis (index 0)
+        if hasattr(ground_truth_tensor, "detach"):
+            ground_truth = ground_truth_tensor.detach().cpu().numpy().reshape(-1)
+        else:
+            ground_truth = np.asarray(ground_truth_tensor).reshape(-1)
+        diff = np.abs(computed_body_pose - ground_truth)
+        # print(f"  Frame {test_frame_idx}: computed_body_pose={computed_body_pose}, ground_truth={ground_truth}")
+        
+        max_error = np.max(diff)
+        mean_error = np.mean(diff)
+        
+        print(f"  Frame {test_frame_idx}: max_error={max_error:.6f}, mean_error={mean_error:.6f}")
+        if max_error > 0.01:
+            print(f"  ⚠️[WARNING] Large error detected!")
+            print(f"  Computed (first 9): {computed_body_pose[:9]}")
+            print(f"  GroundTruth (first 9): {ground_truth[:9]}")
     
     # Calculate aligned fps based on downsampling
     src_fps = smplx_data["mocap_frame_rate"].item()
     aligned_fps = src_fps / down_sample
     
-    return smplx_data_frames, aligned_3fps
+    return smplx_data_frames, aligned_fps
     
 
 # ===== 进度跟踪 =====
@@ -313,6 +364,7 @@ def process_single_npz_file(smplx_file_path, output_path, robot, SMPLX_FOLDER, n
         smplx_data, body_model, smplx_output, actual_human_height = load_smplx_file(
             smplx_file_path, SMPLX_FOLDER
         ) #load_smplx_file() is in /general_motion_retargeting/utils/smpl.py 
+        #notice: smplx_output 
         
         
         #自己手写的降采样方式
