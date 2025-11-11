@@ -311,7 +311,9 @@ class RobotToSMPLXRetargeting:
         #可能原因一，函数本身的计算过程有问题
         #可能原因二，g1_to_smplx.json的数值有问题
         #warning: 可能原因三，没有做归一化
-        #warning: g1_to_smplx.json 一部分offset精度不够
+        #g1_to_smplx.json 一部分offset精度不够
+
+        #warning: 这个输入文件的pelvis是怎么来的？ 怎么和retarget的输出文件的数值对得上？
 
         check2_left_hip_roll_link = robot_data['left_hip_roll_link']
         print(f"check2_left_hip_roll_link: {check2_left_hip_roll_link}")
