@@ -3,6 +3,9 @@ import mink
 import mujoco as mj
 import numpy as np
 import json
+import os
+import copy
+from pathlib import Path
 from scipy.spatial.transform import Rotation as R
 from .params import ROBOT_XML_DICT, IK_CONFIG_DICT
 from rich import print
@@ -23,6 +26,7 @@ class GeneralMotionRetargeting:
 
 
         # high priority: load the robot model 
+        self._tgt_robot = tgt_robot
         self.xml_file = str(ROBOT_XML_DICT[tgt_robot])
         if verbose:
             # print("Use robot model: ", self.xml_file)
@@ -158,10 +162,55 @@ class GeneralMotionRetargeting:
     # high priority: using scale and offset to compute target pose of every joint of robot, and update the (IK)task targets.
     def update_targets(self, human_data, offset_to_ground=False):
         human_data = self.to_numpy(human_data) #ensure that all data is in NumPy array format
+
+        bofore_pelvis = human_data['pelvis']
+        print(f"bofore_pelvis: {bofore_pelvis}")
+        ##000005.npz last frame:  [array([-0.32628706,  0.29134345,  0.97025055], dtype=float32), array([0.01704654, 0.00681596, 0.67657403, 0.73614573])]
+        #? 也可以自己认为设定human_data['left_shoulder']的值, ，这样数值差异的幅度更大更明显
+        before_check1_left_shoulder = human_data['left_shoulder']
+        print(f"before_check1_left_shoulder: {before_check1_left_shoulder}")
+        #000005.npz last frame: [array([-0.482392  ,  0.25966972,  1.3952072 ], dtype=float32), array([ 0.52543509, -0.26132338,  0.66067818,  0.4681158 ])]
+        # [array([-0.482392  ,  0.25966972,  1.3952072 ], dtype=float32), array([ 0.52543509, -0.26132338,  0.66067818,  0.4681158 ])]
+
+
+
+
         # scale the human data in the Global Coordinate System
         human_data = self.scale_human_data(human_data, self.human_root_name, self.human_scale_table)
+        print(f"after scale_human_data(), human_data_left_shoulder: {human_data['left_shoulder']}")
         # offset the human data according to the ik config (eg: smplx_to_g1.json)
         human_data = self.offset_human_data(human_data, self.pos_offsets1, self.rot_offsets1)
+        print(f"after offset_human_data(), human_data_left_shoulder: {human_data['left_shoulder']}")
+
+
+        pelvis = human_data['pelvis']
+        print(f"pelvis: {pelvis}")
+        ##000005.npz last frame: [array([-0.32628706,  0.29134345,  0.97025055]), array([ 0.71829113,  0.02467056, -0.03490114,  0.69442864])]
+        # [array([-0.32628706,  0.29134345,  0.97025055]), array([0.01704654, 0.00681596, 0.67657403, 0.73614573])]
+        check1_left_shoulder = human_data['left_shoulder']
+        print(f"check1_left_shoulder: {check1_left_shoulder}")
+        #000005.npz last frame: [array([-0.44489102,  0.26727868,  1.29312011]), array([0.83870874, 0.14622432, 0.09563131, 0.51579139])]
+        # [array([-0.44489102,  0.26727868,  1.29312011]), array([ 0.52543509, -0.26132338,  0.66067818,  0.4681158 ])]
+
+
+
+
+
+
+
+
+        
+        #(without scale) 000005.npz last frame:  [array([-0.47454201,  0.26126249,  1.3738375 ]), array([0.83870874, 0.14622432, 0.09563131, 0.51579139])]
+
+       
+        #human_data: dict{body_name: [pos, quat]}
+
+        #robot_data: dict{robot_body_name: BodyPose(pos, quat)}
+
+        #vertification
+        # if os.getenv("GMR_VERIFY_REVERSE", "0") == "1":
+        #     self._verify_reverse_consistency(human_data)
+
 
         #! PHC-style: compute a constant ground offset from the first frame (once)
         if not self._ground_offset_initialized: #self._ground_offset_initialized is false -> not self._ground_offset_initialized is true
@@ -355,3 +404,93 @@ class GeneralMotionRetargeting:
             #human_data[body_name][0]是把关节中的position这个三元数组提取出来
             human_data[body_name][0] = pos - np.array([0, 0, self.ground_offset]) 
         return human_data
+    
+    def _verify_reverse_consistency(self, human_data):
+        """Verify that scale_robot_data + offset_robot_data can recover the input human_data"""
+        if getattr(self, "_reverse_verification_done", False):
+            return
+        self._reverse_verification_done = True
+        
+        try:
+            from .reverse_motion_retarget import RobotToSMPLXRetargeting
+            from .robot import BodyPose
+        except Exception as exc:
+            print(f"[GMR] Reverse verification skipped (import error): {exc}")
+            return
+        
+        try:
+            smplx_models = Path(__file__).resolve().parents[1] / "assets" / "body_models"
+            reverse = RobotToSMPLXRetargeting(
+                robot_type=self._tgt_robot,
+                smplx_model_path=smplx_models,
+                gender="neutral",
+                verbose=False,
+            )
+        except Exception as exc:
+            print(f"[GMR] Reverse verification skipped (initialization error): {exc}")
+            return
+        
+        # Backup original human_data
+        human_data_backup = copy.deepcopy(human_data)
+        
+        # Convert human_data (dict{body_name: [pos, quat]}) to robot_data (dict{robot_body_name: BodyPose})
+        robot_data_input = {}
+        for table in (self.ik_match_table1, self.ik_match_table2):
+            for robot_name, entry in table.items():
+                human_name = entry[0]
+                if human_name not in human_data_backup:
+                    continue
+                pos, quat = human_data_backup[human_name]
+                robot_data_input[robot_name] = BodyPose(
+                    pos=np.array(pos, dtype=np.float64),
+                    rot=np.array(quat, dtype=np.float64)
+                )
+        
+        # Add root
+        if self.human_root_name in human_data_backup:
+            pos, quat = human_data_backup[self.human_root_name]
+            robot_data_input[self.robot_root_name] = BodyPose(
+                pos=np.array(pos, dtype=np.float64),
+                rot=np.array(quat, dtype=np.float64)
+            )
+        
+        # Apply reverse scale_robot_data + offset_robot_data
+        robot_data_scaled = reverse.scale_robot_data(copy.deepcopy(robot_data_input))
+        robot_data_final = reverse.offset_robot_data(copy.deepcopy(robot_data_scaled))
+        
+        # Convert back to human_data format for comparison
+        human_data_recovered = {}
+        for table in (self.ik_match_table1, self.ik_match_table2):
+            for robot_name, entry in table.items():
+                human_name = entry[0]
+                if robot_name not in robot_data_final:
+                    continue
+                pose = robot_data_final[robot_name]
+                human_data_recovered[human_name] = [pose.pos.copy(), pose.rot.copy()]
+        
+        if self.robot_root_name in robot_data_final:
+            pose = robot_data_final[self.robot_root_name]
+            human_data_recovered[self.human_root_name] = [pose.pos.copy(), pose.rot.copy()]
+        
+        # Compare
+        max_pos_err = 0.0
+        max_rot_err = 0.0
+        for body_name in human_data_backup.keys():
+            if body_name not in human_data_recovered:
+                continue
+            orig_pos = np.asarray(human_data_backup[body_name][0], dtype=np.float64)
+            orig_quat = np.asarray(human_data_backup[body_name][1], dtype=np.float64)
+            rec_pos = np.asarray(human_data_recovered[body_name][0], dtype=np.float64)
+            rec_quat = np.asarray(human_data_recovered[body_name][1], dtype=np.float64)
+            
+            pos_err = float(np.linalg.norm(orig_pos - rec_pos))
+            quat_direct = np.linalg.norm(orig_quat - rec_quat)
+            quat_flipped = np.linalg.norm(orig_quat + rec_quat)
+            quat_err = float(min(quat_direct, quat_flipped))
+            
+            max_pos_err = max(max_pos_err, pos_err)
+            max_rot_err = max(max_rot_err, quat_err)
+        
+        print("[GMR] Reverse verification (offset_human_data -> scale_robot_data + offset_robot_data -> compare):")
+        print(f"  max position error: {max_pos_err:.6e}")
+        print(f"  max quaternion error: {max_rot_err:.6e}")

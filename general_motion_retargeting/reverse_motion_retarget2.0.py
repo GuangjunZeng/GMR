@@ -275,23 +275,16 @@ class RobotToSMPLXRetargeting:
     def update_targets(self, robot_data: Dict[str, BodyPose], offset_to_ground: bool = True) -> None:
         robot_data = self.to_numpy(robot_data) #ensure that all data is in NumPy array format
 
-        robot_data = self.offset_robot_data(robot_data) 
-        robot_data = self.scale_robot_data(robot_data) #notice: robot_data is a dictionary, key is the robot body name, value is the BodyPose which contains pos and quat(wxyz)
-        #可能原因一，函数本身的计算过程有问题
-        #可能原因二，g1_to_smplx.json的数值有问题
-        #warning: 可能原因三，没有做归一化
         
+        robot_data = self.scale_robot_data(robot_data) #notice: robot_data is a dictionary, key is the robot body name, value is the BodyPose which contains pos and quat(wxyz)
+        robot_data = self.offset_robot_data(robot_data)
+        #warning： 没有验证这几步的计算是否正确？
         #warning: human_height_assumption is not used? 
 
-        check2_left_hip_roll_link = robot_data['left_hip_roll_link']
-        # print(f"check2_left_hip_roll_link: {check2_left_hip_roll_link}")
-
-
-        check2_left_shoulder_yaw_link = robot_data['left_shoulder_yaw_link']
-        print(f"check2_left_shoulder_yaw_link: {check2_left_shoulder_yaw_link}")
-        #000005.npz last frame:  BodyPose(pos=array([-0.47435894,  0.26292525,  1.42337835]), rot=array([ 0.52543509, -0.26132338,  0.66067818,  0.4681158 ]))
-        #BodyPose(pos=array([-0.47454201,  0.26126249,  1.3738375 ]), rot=array([ 0.52543509, -0.26132338,  0.66067818,  0.4681158 ]))
-
+        check2_left_hip = robot_data['left_hip']
+        print(f"check2_left_hip: {check2_left_hip}")
+        #000005.npz last second frame: BodyPose(pos=array([-0.40054602,  0.27873252,  0.89898473]), rot=array([0.03699486, 0.01346263, 0.7445488 , 0.6664062 ]))
+        #000005.npz last frame: BodyPose(pos=array([-0.40074273,  0.2783845 ,  0.89903903]), rot=array([0.03723851, 0.01350463, 0.74416384, 0.66682164]))
 
 
         if not self._ground_offset_initialized: #self._ground_offset_initialized is false -> not self._ground_offset_initialized is true
@@ -315,9 +308,9 @@ class RobotToSMPLXRetargeting:
             for smplx_body, task in self.smplx_body_to_task1.items():
 
                 #smplx_body is smplx body name only exist in ik table1 or table2
-                robot_body = self.robot_body_for_smplx.get(smplx_body) 
-                pose = robot_data.get(robot_body)
-                # pose = robot_data.get(smplx_body) #notice: self.offset_robot_data将robot_data中的机器人body name转换为smplx body name
+                # robot_body = self.robot_body_for_smplx.get(smplx_body) 
+                # pose = robot_data.get(robot_body)
+                pose = robot_data.get(smplx_body) #notice: self.offset_robot_data将robot_data中的机器人body name转换为smplx body name
                 if pose is None:
                     print(f"During the update_targets() function, no pose found for the robot body: {robot_body}")
                     continue
@@ -326,9 +319,9 @@ class RobotToSMPLXRetargeting:
 
         if self.use_ik_match_table2:
             for smplx_body, task in self.smplx_body_to_task2.items():
-                robot_body = self.robot_body_for_smplx.get(smplx_body)
-                pose = robot_data.get(robot_body) 
-                # pose = robot_data.get(smplx_body) 
+                # robot_body = self.robot_body_for_smplx.get(smplx_body)
+                # pose = robot_data.get(robot_body) 
+                pose = robot_data.get(smplx_body) 
                 if pose is None:
                     print(f"During the update_targets() function, no pose found for the robot body: {robot_body}")
                     continue
@@ -401,70 +394,39 @@ class RobotToSMPLXRetargeting:
         scaled: Dict[str, BodyPose] = {} #mark: 这种定义dict的好处是value "BodyPose" 可以方便地对子键值对进行操作。eg: 就像下一行的root_pose.pos(root_pose is the BodyPose in robot_data)
         root_pos = root_pose.pos
 
-        print(f"In scale_robot_data(), root_pose: {root_pose}")
-
-        CHECK = False #!
+        CHECK = True
         for body_name, pose in robot_data.items():
 
-            # if CHECK == True:
-            #     if body_name == "left_hip_roll_link":
-            #         # pose.pos = np.array([-0.3933704 ,  0.27901529,  0.88634385])
-            #         pose.pos = np.array([-0.39319336,  0.27932851,  0.88629498])
-            #         # pose.rot = np.array([ 0.72764389,  0.04312718, -0.07358992,  0.68063128])
-            #         pose.rot = np.array([ 0.72755596,  0.04284811, -0.07307196,  0.68079868])
-            #         before_check2_left_hip_roll_link = robot_data['left_hip_roll_link']
-            #         print(f"before_check2_left_hip_roll_link: {before_check2_left_hip_roll_link}")
+            if CHECK == True:
+                if body_name == "left_hip_roll_link":
+                    # pose.pos = np.array([-0.3933704 ,  0.27901529,  0.88634385])
+                    pose.pos = np.array([-0.39319336,  0.27932851,  0.88629498])
+                    # pose.rot = np.array([ 0.72764389,  0.04312718, -0.07358992,  0.68063128])
+                    pose.rot = np.array([ 0.72755596,  0.04284811, -0.07307196,  0.68079868])
+                    before_check2_left_hip_roll_link = robot_data['left_hip_roll_link']
+                    print(f"before_check2_left_hip_roll_link: {before_check2_left_hip_roll_link}")
 
             scale = self.robot_scale_table.get(body_name)
-            if body_name == "left_shoulder_yaw_link":
-                print(f"In scale_robot_data(), scale: {scale}")
             if scale is None or body_name == self.robot_root_name:
                 scaled[body_name] = pose
                 continue
             local = pose.pos - root_pos
             scaled_pos = local * scale + root_pos
             scaled[body_name] = BodyPose(pos=scaled_pos, rot=pose.rot)
-            if body_name == "left_shoulder_yaw_link":
-                print(f"In scale_robot_data(), scaled[left_shoulder_yaw_link]: {scaled[body_name]}")
 
         return scaled
  
     # high priority: offset the robot data according to the IK config (eg: g1_to_smplx.json)
     def offset_robot_data(self, robot_data: Dict[str, BodyPose]) -> Dict[str, BodyPose]:
         offset_data: Dict[str, BodyPose] = {}
-        CHECK = True
         for smplx_body, robot_body in self.robot_body_for_smplx.items(): #notice： robot_body_for_smplx is dict, key is the smplx body name in ik table, value is the robot body name in ik table 
             pose = robot_data.get(robot_body)
             if pose is None:
                 print(f"During offset_robot_data(), no pose found for robot body: {robot_body}")
                 continue
-
-            if CHECK == True:
-                # if robot_body == "left_hip_roll_link":
-                #     pose.pos = np.array([-0.3933704 ,  0.27901529,  0.88634385])
-                #     # pose.pos = np.array([-0.39319336,  0.27932851,  0.88629498])
-                #     pose.rot = np.array([ 0.72764389,  0.04312718, -0.07358992,  0.68063128])
-                #     # pose.rot = np.array([ 0.72755596,  0.04284811, -0.07307196,  0.68079868])
-                #     before_check2_left_hip_roll_link = robot_data['left_hip_roll_link']
-                #     print(f"before_check2_left_hip_roll_link: {before_check2_left_hip_roll_link}")
-                if robot_body == "pelvis":
-                    pose.pos = np.array([-0.32628706,  0.29134345,  0.97025055])
-                    pose.rot = np.array([0.01704654, 0.00681596, 0.67657403, 0.73614573])
-                    
-                if robot_body == "left_shoulder_yaw_link":
-                    pose.pos = np.array([-0.44489102,  0.26727868,  1.29312011])
-                    pose.rot = np.array([ 0.52543509, -0.26132338,  0.66067818,  0.4681158])
-                    
-                pass
             
             pos, quat = pose.pos, pose.rot  # pos: position of body; quat: quaternion of body (wxyz format)
-            offset_data[robot_body] = BodyPose(pos=pos, rot=quat)  # initialize with original values
-            if robot_body == "pelvis":
-                before_check2_pelvis = offset_data['pelvis']
-                print(f"before_check2_pelvis: {before_check2_pelvis}")
-            if robot_body == "left_shoulder_yaw_link":
-                before_check2_left_shoulder_yaw_link = offset_data['left_shoulder_yaw_link']
-                print(f"before_check2_left_shoulder_yaw_link: {before_check2_left_shoulder_yaw_link}")
+            offset_data[smplx_body] = BodyPose(pos=pos, rot=quat)  # initialize with original values
             
             # apply rotation offset first
             # notice: quat is from robot_data, rot_offsets is from ik config (eg: g1_to_smplx.json)
@@ -474,7 +436,7 @@ class RobotToSMPLXRetargeting:
             else:
                 print(f"rot_offset is None for smplx body: {smplx_body}")
                 continue
-            offset_data[robot_body].rot = updated_quat
+            offset_data[smplx_body].rot = updated_quat
             
             # apply position offset
             local_offset = self.pos_offsets.get(smplx_body)  # notice: pos_offsets is from ik config (eg: g1_to_smplx.json)
@@ -484,7 +446,7 @@ class RobotToSMPLXRetargeting:
             # compute the global position offset using the updated rotation
             global_pos_offset = R.from_quat(updated_quat, scalar_first=True).apply(local_offset)  # R is a matrix, local_offset is a vector, global_pos_offset is a vector
             # 将全局位置偏移加到原始位置上
-            offset_data[robot_body].pos = pos + global_pos_offset
+            offset_data[smplx_body].pos = pos + global_pos_offset
 
         return offset_data
 

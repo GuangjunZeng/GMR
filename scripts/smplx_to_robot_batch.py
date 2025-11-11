@@ -127,9 +127,9 @@ def manual_downsample_smplx_data(smplx_data, body_model, smplx_output, down_samp
         max_error = np.max(diff)
         mean_error = np.mean(diff)
         
-        print(f"  Frame {test_frame_idx}: max_error={max_error:.6f}, mean_error={mean_error:.6f}")
+        # print(f"  Frame {test_frame_idx}: max_error={max_error:.6f}, mean_error={mean_error:.6f}")
         if max_error > 0.01:
-            print(f"  ⚠️[WARNING] Large error detected!")
+            print(f"  ⚠️[WARNING] Large error detected in compute_local_rotations!")
             print(f"  Computed (first 9): {computed_body_pose[:9]}")
             print(f"  GroundTruth (first 9): {ground_truth[:9]}")
     

@@ -34,7 +34,7 @@ class RobotKinematics:
         self._body_names: List[str] = []
         for body_id in range(self.model.nbody):
             name = mj.mj_id2name(self.model, mj.mjtObj.mjOBJ_BODY, body_id)
-            print(f"In init, RobotKinematics: body_id: {body_id}, body_name: {name}")
+            # print(f"In init, RobotKinematics: body_id: {body_id}, body_name: {name}")
             # In init, RobotKinematics: body_id: 0, body_name: world
             # In init, RobotKinematics: body_id: 1, body_name: pelvis
             # In init, RobotKinematics: body_id: 2, body_name: left_hip_pitch_link
