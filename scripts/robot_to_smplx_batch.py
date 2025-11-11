@@ -11,6 +11,7 @@ from rich import print
 
 from general_motion_retargeting import RobotToSMPLXRetargeting, load_robot_motion, RobotKinematics
 from general_motion_retargeting.params import REVERSE_IK_CONFIG_DICT
+from general_motion_retargeting.utils.smpl import get_human_height_from_reference
 
 
 ## python scripts/robot_to_smplx_batch.py --csv_file ../server3_data/locomotion/manifest_test.csv --batch_save_path ../server3_data/locomotion/human/ik_based/npz/   --no_visualize 
@@ -37,11 +38,11 @@ END_ROW = None    # 0-based exclusive（默认处理到末尾）
 #     dtype=np.float32,
 # )
 
-DEFAULT_BETAS = np.array(
-    [ 0.4948395,  -0.59763855, -1.9920285,  -3.4295902,  -0.8790672,  -1.6168683,
-      1.1094068,   0.38612136,  1.5804356,   4.7509418, ],
-    dtype=np.float32,
-)
+# DEFAULT_BETAS = np.array(
+#     [ 0.4948395,  -0.59763855, -1.9920285,  -3.4295902,  -0.8790672,  -1.6168683,
+#       1.1094068,   0.38612136,  1.5804356,   4.7509418, ],
+#     dtype=np.float32,
+# )
 
 
 # ===== CPU 限制（用于全局限制 CPU 占用比例） =====
@@ -258,16 +259,28 @@ def process_batch_from_csv(csv_file, batch_save_path, robot, SMPLX_FOLDER, gende
 def process_single_npz_file(npz_file_path, output_path, robot, SMPLX_FOLDER, gender, betas, no_visualize=False, rate_limit=False):
     """
     process a single NPZ file 
+    
+    Note: The 'betas' parameter is deprecated and ignored. Betas are now automatically
+    loaded from the corresponding reference npz file.
     """
     try:
         # high priority: 加载机器人运动数据
         _, motion_fps, root_pos, root_rot_wxyz, dof_pos, _, _ = load_robot_motion(npz_file_path) #notice: root_rot_wxyz is wxyz format
+        
+        # high priority: 获取 actual_human_height 和 betas（从对应的 reference npz 文件）
+        # Robot npz 文件没有 betas 参数，需要从原始 SMPL-X reference npz 中加载
+        # 构建 reference npz 路径：robot/ik_based/npz/xxx.npz -> reference/ik_based/npz/xxx.npz
+        npz_path_obj = pathlib.Path(npz_file_path)
+        reference_npz_path = str(npz_path_obj).replace('/robot/ik_based/npz/', '/reference/ik_based/npz/')
+        
+        actual_human_height, reference_betas = get_human_height_from_reference(reference_npz_path)
         
         # high priority: initialize the retargeting system
         retarget = RobotToSMPLXRetargeting(
             robot_type=robot,
             smplx_model_path=SMPLX_FOLDER, #smplx model file
             gender=gender,
+            actual_human_height=actual_human_height,
         )
 
         # medium priority
@@ -315,7 +328,8 @@ def process_single_npz_file(npz_file_path, output_path, robot, SMPLX_FOLDER, gen
             i += 1
 
        
-        betas_array = np.array(betas, dtype=np.float64, copy=False) if betas is not None else None
+        # Use betas from reference npz file (already loaded as reference_betas)
+        betas_array = reference_betas.astype(np.float64)
         smplx_params = retarget.frames_to_smplx_parameters(smplx_data_frames, betas=betas_array)
         #? body name的顺序: self.configuration.data能不能提供顺序？ self.configuration传入的是xml配置文件，从中设置顺序？
         #warning: body name/joint_name顺序需要的是标准的SMPLX模型中的顺序(from smplx.joint_names import JOINT_NAMES). 在extract_smplx_frame()中是按照JOINT_NAMES的顺序提取的.

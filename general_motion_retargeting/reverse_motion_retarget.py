@@ -28,6 +28,7 @@ class RobotToSMPLXRetargeting:
         damping: float = 5e-1,
         use_velocity_limit: bool = False,
         verbose: bool = False,
+        actual_human_height: float = None,
     ) -> None:
         self.robot_type = robot_type
         self.verbose = verbose
@@ -124,6 +125,14 @@ class RobotToSMPLXRetargeting:
         self.ik_limits = [mink.ConfigurationLimit(self.model)]
         if self.use_velocity_limit:
             self.ik_limits.append(mink.VelocityLimit(self.model))
+        
+        if actual_human_height is not None:
+            ratio = self.ik_config["human_height_assumption"] / actual_human_height
+            print(f"in reverse retargeting, ratio: {ratio}")
+            for key in self.robot_scale_table.keys():
+                self.robot_scale_table[key] = self.robot_scale_table[key] * ratio
+        else:
+            ratio = 1
 
     # ------------------------------------------------------------------
     # Configuration helpers
@@ -288,7 +297,7 @@ class RobotToSMPLXRetargeting:
 
 
         check2_left_shoulder_yaw_link = robot_data['left_shoulder_yaw_link']
-        print(f"check2_left_shoulder_yaw_link: {check2_left_shoulder_yaw_link}")
+        # print(f"check2_left_shoulder_yaw_link: {check2_left_shoulder_yaw_link}")
         #000005.npz last frame:  BodyPose(pos=array([-0.47435894,  0.26292525,  1.42337835]), rot=array([ 0.52543509, -0.26132338,  0.66067818,  0.4681158 ]))
         #BodyPose(pos=array([-0.47454201,  0.26126249,  1.3738375 ]), rot=array([ 0.52543509, -0.26132338,  0.66067818,  0.4681158 ]))
 
@@ -401,7 +410,7 @@ class RobotToSMPLXRetargeting:
         scaled: Dict[str, BodyPose] = {} #mark: 这种定义dict的好处是value "BodyPose" 可以方便地对子键值对进行操作。eg: 就像下一行的root_pose.pos(root_pose is the BodyPose in robot_data)
         root_pos = root_pose.pos
 
-        print(f"In scale_robot_data(), root_pose: {root_pose}")
+        # print(f"In scale_robot_data(), root_pose: {root_pose}")
 
         CHECK = False #!
         for body_name, pose in robot_data.items():
@@ -417,7 +426,8 @@ class RobotToSMPLXRetargeting:
 
             scale = self.robot_scale_table.get(body_name)
             if body_name == "left_shoulder_yaw_link":
-                print(f"In scale_robot_data(), scale: {scale}")
+                # print(f"In scale_robot_data(), scale: {scale}")
+                pass
             if scale is None or body_name == self.robot_root_name:
                 scaled[body_name] = pose
                 continue
@@ -425,7 +435,8 @@ class RobotToSMPLXRetargeting:
             scaled_pos = local * scale + root_pos
             scaled[body_name] = BodyPose(pos=scaled_pos, rot=pose.rot)
             if body_name == "left_shoulder_yaw_link":
-                print(f"In scale_robot_data(), scaled[left_shoulder_yaw_link]: {scaled[body_name]}")
+                # print(f"In scale_robot_data(), scaled[left_shoulder_yaw_link]: {scaled[body_name]}")
+                pass
 
         return scaled
  

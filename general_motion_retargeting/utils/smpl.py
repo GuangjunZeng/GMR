@@ -97,6 +97,46 @@ def load_smplx_file(smplx_file, smplx_body_model_path):
     return smplx_data, body_model, smplx_output, human_height
 
 
+def get_human_height_from_reference(reference_npz_path):
+    """
+    Extract betas from reference SMPL-X npz file and calculate human height.
+    Used in reverse retargeting to get actual_human_height and betas.
+    
+    Args:
+        reference_npz_path: Path to the reference SMPL-X npz file
+        
+    Returns:
+        human_height: Calculated human height in meters
+        betas: SMPL-X betas array (shape: (10,) or similar)
+    """
+    try:
+        ref_data = np.load(reference_npz_path, allow_pickle=True)
+        if "betas" not in ref_data:
+            print(f"Warning: 'betas' not found in {reference_npz_path}, using defaults")
+            default_betas = np.zeros(10, dtype=np.float32)
+            return 1.66, default_betas
+        
+        betas = ref_data["betas"]
+        
+        # Calculate human height
+        if len(betas.shape) == 1:
+            human_height = 1.66 + 0.1 * betas[0]
+        else:
+            human_height = 1.66 + 0.1 * betas[0, 0]
+            # If betas is 2D, take the first row
+            betas = betas[0] if len(betas.shape) == 2 else betas
+        
+        print(f"in reference data, human_height: {human_height}, betas: {betas}")
+        
+        return float(human_height), betas.astype(np.float32)
+
+    except Exception as e:
+        print(f"Warning: Failed to load betas from {reference_npz_path}: {e}")
+        print("Using defaults")
+        default_betas = np.zeros(10, dtype=np.float32)
+        return 1.66, default_betas
+
+
 def load_gvhmr_pred_file(gvhmr_pred_file, smplx_body_model_path):
     gvhmr_pred = torch.load(gvhmr_pred_file)
     smpl_params_global = gvhmr_pred['smpl_params_global']

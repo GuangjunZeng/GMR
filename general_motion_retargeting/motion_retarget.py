@@ -76,6 +76,7 @@ class GeneralMotionRetargeting:
         else:
             ratio = 1.0
         # Apply the height ratio to the scaling factor of each body part
+        print(f"ratio: {ratio}")
         for key in ik_config["human_scale_table"].keys():
             ik_config["human_scale_table"][key] = ik_config["human_scale_table"][key] * ratio
     
@@ -164,11 +165,11 @@ class GeneralMotionRetargeting:
         human_data = self.to_numpy(human_data) #ensure that all data is in NumPy array format
 
         bofore_pelvis = human_data['pelvis']
-        print(f"bofore_pelvis: {bofore_pelvis}")
+        # print(f"bofore_pelvis: {bofore_pelvis}")
         ##000005.npz last frame:  [array([-0.32628706,  0.29134345,  0.97025055], dtype=float32), array([0.01704654, 0.00681596, 0.67657403, 0.73614573])]
         #? 也可以自己认为设定human_data['left_shoulder']的值, ，这样数值差异的幅度更大更明显
         before_check1_left_shoulder = human_data['left_shoulder']
-        print(f"before_check1_left_shoulder: {before_check1_left_shoulder}")
+        # print(f"before_check1_left_shoulder: {before_check1_left_shoulder}")
         #000005.npz last frame: [array([-0.482392  ,  0.25966972,  1.3952072 ], dtype=float32), array([ 0.52543509, -0.26132338,  0.66067818,  0.4681158 ])]
         # [array([-0.482392  ,  0.25966972,  1.3952072 ], dtype=float32), array([ 0.52543509, -0.26132338,  0.66067818,  0.4681158 ])]
 
@@ -177,18 +178,18 @@ class GeneralMotionRetargeting:
 
         # scale the human data in the Global Coordinate System
         human_data = self.scale_human_data(human_data, self.human_root_name, self.human_scale_table)
-        print(f"after scale_human_data(), human_data_left_shoulder: {human_data['left_shoulder']}")
+        # print(f"after scale_human_data(), human_data_left_shoulder: {human_data['left_shoulder']}")
         # offset the human data according to the ik config (eg: smplx_to_g1.json)
         human_data = self.offset_human_data(human_data, self.pos_offsets1, self.rot_offsets1)
-        print(f"after offset_human_data(), human_data_left_shoulder: {human_data['left_shoulder']}")
+        # print(f"after offset_human_data(), human_data_left_shoulder: {human_data['left_shoulder']}")
 
 
         pelvis = human_data['pelvis']
-        print(f"pelvis: {pelvis}")
+        # print(f"pelvis: {pelvis}")
         ##000005.npz last frame: [array([-0.32628706,  0.29134345,  0.97025055]), array([ 0.71829113,  0.02467056, -0.03490114,  0.69442864])]
         # [array([-0.32628706,  0.29134345,  0.97025055]), array([0.01704654, 0.00681596, 0.67657403, 0.73614573])]
         check1_left_shoulder = human_data['left_shoulder']
-        print(f"check1_left_shoulder: {check1_left_shoulder}")
+        # print(f"check1_left_shoulder: {check1_left_shoulder}")
         #000005.npz last frame: [array([-0.44489102,  0.26727868,  1.29312011]), array([0.83870874, 0.14622432, 0.09563131, 0.51579139])]
         # [array([-0.44489102,  0.26727868,  1.29312011]), array([ 0.52543509, -0.26132338,  0.66067818,  0.4681158 ])]
 
@@ -339,10 +340,15 @@ class GeneralMotionRetargeting:
             if body_name not in human_scale_table:
                 continue
             if body_name == human_root_name:
+                # print(f"in scale_human_data(), human_root_pose: {human_data[human_root_name]}")
                 continue
             else:
                 # transform to local frame (only position)
                 human_data_local[body_name] = (human_data[body_name][0] - root_pos) * human_scale_table[body_name]
+
+                if body_name == "left_shoulder":
+                    # print(f"in scale_human_data(), human_scale_table[left_shoulder]: {human_scale_table[body_name]}")
+                    pass
             
         # transform the human data back to the global frame
         human_data_global = {human_root_name: (scaled_root_pos, root_quat)}
