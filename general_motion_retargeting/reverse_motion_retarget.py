@@ -311,8 +311,7 @@ class RobotToSMPLXRetargeting:
         #可能原因一，函数本身的计算过程有问题
         #可能原因二，g1_to_smplx.json的数值有问题
         #warning: 可能原因三，没有做归一化
-        
-        #warning: human_height_assumption is not used? 
+        #warning: g1_to_smplx.json 一部分offset精度不够
 
         check2_left_hip_roll_link = robot_data['left_hip_roll_link']
         print(f"check2_left_hip_roll_link: {check2_left_hip_roll_link}")
@@ -323,7 +322,7 @@ class RobotToSMPLXRetargeting:
         left_shoulder_quat = np.asarray(check2_left_shoulder_yaw_link.rot, dtype=np.float64).reshape(-1)
         print("check2_left_shoulder_yaw_link: " + ", ".join(f"{value:.15f}" for value in np.concatenate([left_shoulder_pos, left_shoulder_quat])))
         #000005.npz last frame:  BodyPose(pos=array([-0.47435894,  0.26292525,  1.42337835]), rot=array([ 0.52543509, -0.26132338,  0.66067818,  0.4681158 ]))
-        #BodyPose(pos=array([-0.47454201,  0.26126249,  1.3738375 ]), rot=array([ 0.52543509, -0.26132338,  0.66067818,  0.4681158 ]))
+        # [ -0.482392021088843, 0.259669719500133, 1.395207188492965], [0.525435089028519, -0.261323381639568, 0.660678180602081, 0.468115796681096]
 
 
 
@@ -488,7 +487,7 @@ class RobotToSMPLXRetargeting:
                     
                 if robot_body == "left_shoulder_yaw_link":
                     pose.pos = np.array([-0.444891021011150, 0.267278680737261, 1.293120111716746])
-                    pose.rot = np.array([0.525435089028519, -0.261323381639568, 0.660678180602081, 0.468115796681096])
+                    pose.rot = np.array([0.838708736211145, 0.146224318973807, 0.095631307160299, 0.515791389453685])
                     
         
             

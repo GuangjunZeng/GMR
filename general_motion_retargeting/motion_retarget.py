@@ -214,7 +214,7 @@ class GeneralMotionRetargeting:
         left_shoulder_pos = np.asarray(check1_left_shoulder[0], dtype=np.float64).reshape(-1)
         left_shoulder_quat = np.asarray(check1_left_shoulder[1], dtype=np.float64).reshape(-1)
         print("check1_left_shoulder: " + ", ".join(f"{value:.15f}" for value in np.concatenate([left_shoulder_pos, left_shoulder_quat])))
-        # 000005.npz last frame: [array([-0.44489102,  0.26727868,  1.29312011]), array([0.83870874, 0.14622432, 0.09563131, 0.51579139])]
+        # 000005.npz last frame: [array([-0.444891021011150, 0.267278680737261, 1.293120111716746]), array([0.838708736211145, 0.146224318973807, 0.095631307160299, 0.515791389453685])]
         # [array([-0.444891021011150, 0.267278680737261, 1.293120111716746]), array([ 0.525435089028519, -0.261323381639568, 0.660678180602081, 0.468115796681096 ])]
 
 
