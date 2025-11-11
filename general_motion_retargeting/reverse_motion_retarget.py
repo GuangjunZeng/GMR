@@ -128,11 +128,33 @@ class RobotToSMPLXRetargeting:
         
         if actual_human_height is not None:
             ratio = self.ik_config["human_height_assumption"] / actual_human_height
-            print(f"in reverse retargeting, ratio: {ratio}")
+            print(f"in reverse retargeting, ratio: {ratio}") #000005.npz: ratio= 1.052949396067974
             for key in self.robot_scale_table.keys():
                 self.robot_scale_table[key] = self.robot_scale_table[key] * ratio
+            
+            # 打印完整的 robot_scale_table 以查看精度
+            print("\n=== Updated robot_scale_table ===")
+            for key, value in self.robot_scale_table.items():
+                print(f"  {key}: {value:.15f}")  # 显示15位小数
+            print("==================================\n")
         else:
             ratio = 1
+
+        #000005.npz:
+        # pelvis: 1.169943656414483
+        # torso_link: 1.169943656414483
+        # left_hip_roll_link: 1.169943656414483
+        # right_hip_roll_link: 1.169943656414483
+        # left_knee_link: 1.169943656414483
+        # right_knee_link: 1.169943656414483
+        # left_toe_link: 1.169943656414483
+        # right_toe_link: 1.169943656414483
+        # left_shoulder_yaw_link: 1.316186745084968
+        # right_shoulder_yaw_link: 1.316186745084968
+        # left_elbow_link: 1.316186745084968
+        # right_elbow_link: 1.316186745084968
+        # left_wrist_yaw_link: 1.316186745084968
+        # right_wrist_yaw_link: 1.316186745084968
 
     # ------------------------------------------------------------------
     # Configuration helpers
@@ -293,11 +315,13 @@ class RobotToSMPLXRetargeting:
         #warning: human_height_assumption is not used? 
 
         check2_left_hip_roll_link = robot_data['left_hip_roll_link']
-        # print(f"check2_left_hip_roll_link: {check2_left_hip_roll_link}")
+        print(f"check2_left_hip_roll_link: {check2_left_hip_roll_link}")
 
 
         check2_left_shoulder_yaw_link = robot_data['left_shoulder_yaw_link']
-        # print(f"check2_left_shoulder_yaw_link: {check2_left_shoulder_yaw_link}")
+        left_shoulder_pos = np.asarray(check2_left_shoulder_yaw_link.pos, dtype=np.float64).reshape(-1)
+        left_shoulder_quat = np.asarray(check2_left_shoulder_yaw_link.rot, dtype=np.float64).reshape(-1)
+        print("check2_left_shoulder_yaw_link: " + ", ".join(f"{value:.15f}" for value in np.concatenate([left_shoulder_pos, left_shoulder_quat])))
         #000005.npz last frame:  BodyPose(pos=array([-0.47435894,  0.26292525,  1.42337835]), rot=array([ 0.52543509, -0.26132338,  0.66067818,  0.4681158 ]))
         #BodyPose(pos=array([-0.47454201,  0.26126249,  1.3738375 ]), rot=array([ 0.52543509, -0.26132338,  0.66067818,  0.4681158 ]))
 
@@ -459,23 +483,25 @@ class RobotToSMPLXRetargeting:
                 #     before_check2_left_hip_roll_link = robot_data['left_hip_roll_link']
                 #     print(f"before_check2_left_hip_roll_link: {before_check2_left_hip_roll_link}")
                 if robot_body == "pelvis":
-                    pose.pos = np.array([-0.32628706,  0.29134345,  0.97025055])
-                    pose.rot = np.array([0.01704654, 0.00681596, 0.67657403, 0.73614573])
+                    pose.pos = np.array([-0.326287060976028, 0.291343450546265, 0.970250546932220])
+                    pose.rot = np.array([0.017046535297107, 0.006815957199062, 0.676574028535944, 0.736145734398067])
                     
                 if robot_body == "left_shoulder_yaw_link":
-                    pose.pos = np.array([-0.44489102,  0.26727868,  1.29312011])
-                    pose.rot = np.array([ 0.52543509, -0.26132338,  0.66067818,  0.4681158])
+                    pose.pos = np.array([-0.444891021011150, 0.267278680737261, 1.293120111716746])
+                    pose.rot = np.array([0.525435089028519, -0.261323381639568, 0.660678180602081, 0.468115796681096])
                     
-                pass
+        
             
             pos, quat = pose.pos, pose.rot  # pos: position of body; quat: quaternion of body (wxyz format)
             offset_data[robot_body] = BodyPose(pos=pos, rot=quat)  # initialize with original values
             if robot_body == "pelvis":
                 before_check2_pelvis = offset_data['pelvis']
                 print(f"before_check2_pelvis: {before_check2_pelvis}")
+                pass
             if robot_body == "left_shoulder_yaw_link":
                 before_check2_left_shoulder_yaw_link = offset_data['left_shoulder_yaw_link']
                 print(f"before_check2_left_shoulder_yaw_link: {before_check2_left_shoulder_yaw_link}")
+                pass
             
             # apply rotation offset first
             # notice: quat is from robot_data, rot_offsets is from ik config (eg: g1_to_smplx.json)

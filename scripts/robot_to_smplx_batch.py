@@ -38,11 +38,11 @@ END_ROW = None    # 0-based exclusive（默认处理到末尾）
 #     dtype=np.float32,
 # )
 
-# DEFAULT_BETAS = np.array(
-#     [ 0.4948395,  -0.59763855, -1.9920285,  -3.4295902,  -0.8790672,  -1.6168683,
-#       1.1094068,   0.38612136,  1.5804356,   4.7509418, ],
-#     dtype=np.float32,
-# )
+DEFAULT_BETAS = np.array(
+    [ 0.4948395,  -0.59763855, -1.9920285,  -3.4295902,  -0.8790672,  -1.6168683,
+      1.1094068,   0.38612136,  1.5804356,   4.7509418, ],
+    dtype=np.float32,
+)
 
 
 # ===== CPU 限制（用于全局限制 CPU 占用比例） =====
@@ -271,7 +271,7 @@ def process_single_npz_file(npz_file_path, output_path, robot, SMPLX_FOLDER, gen
         # Robot npz 文件没有 betas 参数，需要从原始 SMPL-X reference npz 中加载
         # 构建 reference npz 路径：robot/ik_based/npz/xxx.npz -> reference/ik_based/npz/xxx.npz
         npz_path_obj = pathlib.Path(npz_file_path)
-        reference_npz_path = str(npz_path_obj).replace('/robot/ik_based/npz/', '/reference/ik_based/npz/')
+        reference_npz_path = str(npz_path_obj).replace('/robot/ik_based/npz/', '/reference/')
         
         actual_human_height, reference_betas = get_human_height_from_reference(reference_npz_path)
         
