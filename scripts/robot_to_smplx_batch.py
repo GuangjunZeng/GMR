@@ -343,6 +343,9 @@ def process_single_npz_file(npz_file_path, output_path, robot, SMPLX_FOLDER, gen
 
         #smpl_trans 和 pelvis_trans之间的关系可以看000000.npz文件生成的代码
 
+        print(f"finally, pelvis_trans (last 7 frames): {smplx_params['pelvis_trans'][-7:]}")
+        print()
+   
         np.savez(
             output_path,
             gender=np.array(gender),

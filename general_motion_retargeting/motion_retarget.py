@@ -185,13 +185,12 @@ class GeneralMotionRetargeting:
         human_data = self.to_numpy(human_data) #ensure that all data is in NumPy array format
 
         bofore_pelvis = human_data['pelvis']
-        print(f"bofore_pelvis: {bofore_pelvis}")
+        # print(f"bofore_pelvis: {bofore_pelvis}")
         ##000005.npz last frame:  [array([-0.32628706,  0.29134345,  0.97025055], dtype=float32), array([0.01704654, 0.00681596, 0.67657403, 0.73614573])]
         #? 也可以自己认为设定human_data['left_shoulder']的值, ，这样数值差异的幅度更大更明显
         before_check1_left_shoulder = human_data['left_shoulder']
-        print(f"before_check1_left_shoulder: {before_check1_left_shoulder}")
+        # print(f"before_check1_left_shoulder: {before_check1_left_shoulder}")
         #000005.npz last frame: [array([-0.482392  ,  0.25966972,  1.3952072 ], dtype=float32), array([ 0.52543509, -0.26132338,  0.66067818,  0.4681158 ])]
-        # [array([-0.482392  ,  0.25966972,  1.3952072 ], dtype=float32), array([ 0.52543509, -0.26132338,  0.66067818,  0.4681158 ])]
 
 
 
@@ -210,12 +209,14 @@ class GeneralMotionRetargeting:
         print("pelvis: " + ", ".join(f"{value:.15f}" for value in np.concatenate([pelvis_pos, pelvis_quat])))
         ##000005.npz last frame: [array([-0.32628706,  0.29134345,  0.97025055]), array([ 0.71829113,  0.02467056, -0.03490114,  0.69442864])]
         # [array([ -0.326287060976028, 0.291343450546265, 0.970250546932220]), array([ 0.017046535297107, 0.006815957199062, 0.676574028535944, 0.736145734398067])]
+        #  -0.326287060976028, 0.291343450546265, 0.970250546932220,                 0.718291127715090, 0.024670563882039, -0.034901141980084, 0.694428635218921
         check1_left_shoulder = human_data['left_shoulder']
         left_shoulder_pos = np.asarray(check1_left_shoulder[0], dtype=np.float64).reshape(-1)
         left_shoulder_quat = np.asarray(check1_left_shoulder[1], dtype=np.float64).reshape(-1)
-        print("check1_left_shoulder: " + ", ".join(f"{value:.15f}" for value in np.concatenate([left_shoulder_pos, left_shoulder_quat])))
+        # print("check1_left_shoulder: " + ", ".join(f"{value:.15f}" for value in np.concatenate([left_shoulder_pos, left_shoulder_quat])))
         # 000005.npz last frame: [array([-0.444891021011150, 0.267278680737261, 1.293120111716746]), array([0.838708736211145, 0.146224318973807, 0.095631307160299, 0.515791389453685])]
         # [array([-0.444891021011150, 0.267278680737261, 1.293120111716746]), array([ 0.525435089028519, -0.261323381639568, 0.660678180602081, 0.468115796681096 ])]
+        #  -0.444891021011150, 0.267278680737261, 1.293120111716746,            0.838708736211145, 0.146224318973807, 0.095631307160299, 0.515791389453685 
 
 
 

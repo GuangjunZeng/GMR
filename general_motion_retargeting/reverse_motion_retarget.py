@@ -315,14 +315,18 @@ class RobotToSMPLXRetargeting:
 
         #warning: 这个输入文件的pelvis是怎么来的？ 怎么和retarget的输出文件的数值对得上？
 
+
+        check2_pelvis = robot_data['pelvis']
+        print(f"check2_pelvis: {check2_pelvis}")
+
         check2_left_hip_roll_link = robot_data['left_hip_roll_link']
-        print(f"check2_left_hip_roll_link: {check2_left_hip_roll_link}")
+        # print(f"check2_left_hip_roll_link: {check2_left_hip_roll_link}")
 
 
         check2_left_shoulder_yaw_link = robot_data['left_shoulder_yaw_link']
         left_shoulder_pos = np.asarray(check2_left_shoulder_yaw_link.pos, dtype=np.float64).reshape(-1)
         left_shoulder_quat = np.asarray(check2_left_shoulder_yaw_link.rot, dtype=np.float64).reshape(-1)
-        print("check2_left_shoulder_yaw_link: " + ", ".join(f"{value:.15f}" for value in np.concatenate([left_shoulder_pos, left_shoulder_quat])))
+        # print("check2_left_shoulder_yaw_link: " + ", ".join(f"{value:.15f}" for value in np.concatenate([left_shoulder_pos, left_shoulder_quat])))
         #000005.npz last frame:  BodyPose(pos=array([-0.47435894,  0.26292525,  1.42337835]), rot=array([ 0.52543509, -0.26132338,  0.66067818,  0.4681158 ]))
         # [ -0.482392021088843, 0.259669719500133, 1.395207188492965], [0.525435089028519, -0.261323381639568, 0.660678180602081, 0.468115796681096]
 
@@ -437,31 +441,21 @@ class RobotToSMPLXRetargeting:
 
         # print(f"In scale_robot_data(), root_pose: {root_pose}")
 
-        CHECK = False #!
+
         for body_name, pose in robot_data.items():
-
-            # if CHECK == True:
-            #     if body_name == "left_hip_roll_link":
-            #         # pose.pos = np.array([-0.3933704 ,  0.27901529,  0.88634385])
-            #         pose.pos = np.array([-0.39319336,  0.27932851,  0.88629498])
-            #         # pose.rot = np.array([ 0.72764389,  0.04312718, -0.07358992,  0.68063128])
-            #         pose.rot = np.array([ 0.72755596,  0.04284811, -0.07307196,  0.68079868])
-            #         before_check2_left_hip_roll_link = robot_data['left_hip_roll_link']
-            #         print(f"before_check2_left_hip_roll_link: {before_check2_left_hip_roll_link}")
-
             scale = self.robot_scale_table.get(body_name)
-            if body_name == "left_shoulder_yaw_link":
-                # print(f"In scale_robot_data(), scale: {scale}")
-                pass
+            # if body_name == "left_shoulder_yaw_link":
+            #     # print(f"In scale_robot_data(), scale: {scale}")
+            #     pass
             if scale is None or body_name == self.robot_root_name:
                 scaled[body_name] = pose
                 continue
             local = pose.pos - root_pos
             scaled_pos = local * scale + root_pos
             scaled[body_name] = BodyPose(pos=scaled_pos, rot=pose.rot)
-            if body_name == "left_shoulder_yaw_link":
-                # print(f"In scale_robot_data(), scaled[left_shoulder_yaw_link]: {scaled[body_name]}")
-                pass
+            # if body_name == "left_shoulder_yaw_link":
+            #     # print(f"In scale_robot_data(), scaled[left_shoulder_yaw_link]: {scaled[body_name]}")
+            #     pass
 
         return scaled
  
@@ -475,21 +469,21 @@ class RobotToSMPLXRetargeting:
                 print(f"During offset_robot_data(), no pose found for robot body: {robot_body}")
                 continue
 
-            if CHECK == True:
-                # if robot_body == "left_hip_roll_link":
-                #     pose.pos = np.array([-0.3933704 ,  0.27901529,  0.88634385])
-                #     # pose.pos = np.array([-0.39319336,  0.27932851,  0.88629498])
-                #     pose.rot = np.array([ 0.72764389,  0.04312718, -0.07358992,  0.68063128])
-                #     # pose.rot = np.array([ 0.72755596,  0.04284811, -0.07307196,  0.68079868])
-                #     before_check2_left_hip_roll_link = robot_data['left_hip_roll_link']
-                #     print(f"before_check2_left_hip_roll_link: {before_check2_left_hip_roll_link}")
-                if robot_body == "pelvis":
-                    pose.pos = np.array([-0.326287060976028, 0.291343450546265, 0.970250546932220])
-                    pose.rot = np.array([0.017046535297107, 0.006815957199062, 0.676574028535944, 0.736145734398067])
+            # if CHECK == True:
+            #     # if robot_body == "left_hip_roll_link":
+            #     #     pose.pos = np.array([-0.3933704 ,  0.27901529,  0.88634385])
+            #     #     # pose.pos = np.array([-0.39319336,  0.27932851,  0.88629498])
+            #     #     pose.rot = np.array([ 0.72764389,  0.04312718, -0.07358992,  0.68063128])
+            #     #     # pose.rot = np.array([ 0.72755596,  0.04284811, -0.07307196,  0.68079868])
+            #     #     before_check2_left_hip_roll_link = robot_data['left_hip_roll_link']
+            #     #     print(f"before_check2_left_hip_roll_link: {before_check2_left_hip_roll_link}")
+            #     if robot_body == "pelvis":
+            #         pose.pos = np.array([-0.326287060976028, 0.291343450546265, 0.970250546932220])
+            #         pose.rot = np.array([ 0.718291127715090, 0.024670563882039, -0.034901141980084, 0.694428635218921])
                     
-                if robot_body == "left_shoulder_yaw_link":
-                    pose.pos = np.array([-0.444891021011150, 0.267278680737261, 1.293120111716746])
-                    pose.rot = np.array([0.838708736211145, 0.146224318973807, 0.095631307160299, 0.515791389453685])
+            #     if robot_body == "left_shoulder_yaw_link":
+            #         pose.pos = np.array([-0.444891021011150, 0.267278680737261, 1.293120111716746])
+            #         pose.rot = np.array([0.838708736211145, 0.146224318973807, 0.095631307160299, 0.515791389453685])
                     
         
             
@@ -501,7 +495,7 @@ class RobotToSMPLXRetargeting:
                 pass
             if robot_body == "left_shoulder_yaw_link":
                 before_check2_left_shoulder_yaw_link = offset_data['left_shoulder_yaw_link']
-                print(f"before_check2_left_shoulder_yaw_link: {before_check2_left_shoulder_yaw_link}")
+                # print(f"before_check2_left_shoulder_yaw_link: {before_check2_left_shoulder_yaw_link}")
                 pass
             
             # apply rotation offset first

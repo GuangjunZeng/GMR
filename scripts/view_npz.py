@@ -105,13 +105,17 @@ def view_npz_data(npz_path, show_preview=True, save_csv=False, show_first_frame=
             if key == "pelvis_trans":
                 # print(f"    pelvis_trans: {value}")
                 np.set_printoptions(threshold=np.inf, linewidth=200, suppress=True)
-                print("pelvis_trans (first 5 frames):")
-                print(value[:5])
+                # print("pelvis_trans (first 5 frames):")
+                # print(value[:5])
+                print("pelvis_trans (last 7 frames):")
+                print(value[-7:])
             if key == "pelvis_quat_xyzw":
                 # print(f"    pelvis_quat_xyzw: {value}")
                 np.set_printoptions(threshold=np.inf, linewidth=200, suppress=True)
-                print("pelvis_quat_xyzw (first 5 frames):")
-                print(value[:5])
+                # print("pelvis_quat_xyzw (first 5 frames):")
+                # print(value[:5])
+                print("pelvis_quat_xyzw (last 7 frames):")
+                print(value[-7:])
             
         else:
             print(f"   值: {value}")
