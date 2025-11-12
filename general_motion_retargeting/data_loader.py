@@ -6,27 +6,27 @@ import numpy as np
 import pickle
 
 
-def _load_pickle_motion(path: Path) -> Tuple[Dict[str, Any], float, np.ndarray, np.ndarray, np.ndarray, Any, Any]:
-    with path.open("rb") as f:
-        motion_data = pickle.load(f)
+# def _load_pickle_motion(path: Path) -> Tuple[Dict[str, Any], float, np.ndarray, np.ndarray, np.ndarray, Any, Any]:
+#     with path.open("rb") as f:
+#         motion_data = pickle.load(f)
 
-    motion_fps = float(motion_data["fps"])
-    motion_root_pos = np.asarray(motion_data["root_pos"], dtype=np.float64)
-    motion_root_rot_xyzw = np.asarray(motion_data["root_rot"], dtype=np.float64)
-    motion_root_rot = motion_root_rot_xyzw[:, [3, 0, 1, 2]]  # xyzw -> wxyz
-    motion_dof_pos = np.asarray(motion_data["dof_pos"], dtype=np.float64)
-    motion_local_body_pos = motion_data.get("local_body_pos")
-    motion_link_body_list = motion_data.get("link_body_list")
+#     motion_fps = float(motion_data["fps"])
+#     motion_root_pos = np.asarray(motion_data["root_pos"], dtype=np.float64)
+#     motion_root_rot_xyzw = np.asarray(motion_data["root_rot"], dtype=np.float64)
+#     motion_root_rot = motion_root_rot_xyzw[:, [3, 0, 1, 2]]  # xyzw -> wxyz #?
+#     motion_dof_pos = np.asarray(motion_data["dof_pos"], dtype=np.float64)
+#     motion_local_body_pos = motion_data.get("local_body_pos")
+#     motion_link_body_list = motion_data.get("link_body_list")
 
-    return (
-        motion_data,
-        motion_fps,
-        motion_root_pos,
-        motion_root_rot,
-        motion_dof_pos,
-        motion_local_body_pos,
-        motion_link_body_list,
-    )
+#     return (
+#         motion_data,
+#         motion_fps,
+#         motion_root_pos,
+#         motion_root_rot,
+#         motion_dof_pos,
+#         motion_local_body_pos,
+#         motion_link_body_list,
+#     )
 
 
 def _load_npz_motion(path: Path) -> Tuple[Dict[str, Any], float, np.ndarray, np.ndarray, np.ndarray, Any, Any]:
@@ -76,7 +76,7 @@ def _load_npz_motion(path: Path) -> Tuple[Dict[str, Any], float, np.ndarray, np.
         root_pos = qpos[:, :3]
         root_rot_xyzw = qpos[:, 3:7] #notice: qpos is xyzw format （from input robot npz file）
         #notice：root_rot is wxyz format
-        root_rot = np.concatenate([root_rot_xyzw[:, 3:4], root_rot_xyzw[:, :3]], axis=1)
+        root_rot = np.concatenate([root_rot_xyzw[:, 3:4], root_rot_xyzw[:, :3]], axis=1) # wxyz format
         dof_pos = qpos[:, 7:]
 
         fps = None

@@ -561,7 +561,7 @@ class RobotToSMPLXRetargeting:
                 continue
             pos = self.configuration.data.xpos[body_id].copy()
             quat = self.configuration.data.xquat[body_id].copy() #warning: 无法验证 quat is wxyz format
-            #xquat是绝对旋转（源码engine_core_smooth.c可以证明)
+            #xquat是绝对旋转（源码engine_core_smooth.c可以证明), 源码应该大概率已经证明是wxyz格式
             frame[joint_name] = {"pos": pos, "rot": quat}
         return frame
 

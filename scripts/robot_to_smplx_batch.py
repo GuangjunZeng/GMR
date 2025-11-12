@@ -300,7 +300,7 @@ def process_single_npz_file(npz_file_path, output_path, robot, SMPLX_FOLDER, gen
             # 组合当帧的 qpos
             qpos = retarget.robot_kinematics.compose_qpos(
                 root_pos[i],
-                root_rot_wxyz[i], #在smplx_to_robot_batch.py中求解得到的qpos是wxyz格式，所以这里组成qpos的时候也是wxyz格式
+                root_rot_wxyz[i], 
                 dof_pos[i],
             )
             # 计算机器人各 body 的世界姿态 (FK)
@@ -344,7 +344,9 @@ def process_single_npz_file(npz_file_path, output_path, robot, SMPLX_FOLDER, gen
         #smpl_trans 和 pelvis_trans之间的关系可以看000000.npz文件生成的代码
 
         print(f"finally, pelvis_trans (last 7 frames): {smplx_params['pelvis_trans'][-7:]}")
-        print()
+        print(f"finally, pelvis_quat_xyzw (last 7 frames): {smplx_params['pelvis_quat_xyzw'][-7:]}")
+
+        #warning: 最后输出，wxyz or xyzw?
    
         np.savez(
             output_path,

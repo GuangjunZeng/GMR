@@ -87,8 +87,8 @@ def manual_downsample_smplx_data(smplx_data, body_model, smplx_output, down_samp
                     single_full_body_pose[i].squeeze() #single_full_body_pose[i]: 当前关节相对于父关节的局部旋转
                 )
             joint_orientations.append(rot)
-            result[joint_name] = (single_joints[i], rot.as_quat(scalar_first=True))
-            #rot.as_quat(scalar_first=True)   # → [w, x, y, z]
+            result[joint_name] = (single_joints[i], rot.as_quat(scalar_first=True)) #!wxyz
+            #rot.as_quat(scalar_first=True)   # → [w, x, y, z] 
             #rot.as_quat(scalar_first=False)  # → [x, y, z, w]
 
         smplx_data_frames.append(result)

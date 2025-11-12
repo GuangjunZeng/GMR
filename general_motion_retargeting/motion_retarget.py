@@ -185,7 +185,7 @@ class GeneralMotionRetargeting:
         human_data = self.to_numpy(human_data) #ensure that all data is in NumPy array format
 
         bofore_pelvis = human_data['pelvis']
-        # print(f"bofore_pelvis: {bofore_pelvis}")
+        print(f"bofore_pelvis: {bofore_pelvis}")
         ##000005.npz last frame:  [array([-0.32628706,  0.29134345,  0.97025055], dtype=float32), array([0.01704654, 0.00681596, 0.67657403, 0.73614573])]
         #? 也可以自己认为设定human_data['left_shoulder']的值, ，这样数值差异的幅度更大更明显
         before_check1_left_shoulder = human_data['left_shoulder']
