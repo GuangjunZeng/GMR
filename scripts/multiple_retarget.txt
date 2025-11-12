@@ -2,20 +2,21 @@
 conda activate gmr
 !!!!!!!!!!!
 
+原始scale::allscale!!
 先开一个tmux:
 tmux new -s smplx_robot
 bash
 conda init bash # 1. 先初始化 conda
 source ~/.bashrc  //nano ~/.zshrc
 conda activate gmr # 3. 现在可以正常激活环境了
-python scripts/smplx_to_robot_batch.py --csv_file ../server3_data/locomotion/manifest_raw.csv --batch_save_path ../server3_data/locomotion/robot/ik_based/pkl/   --robot unitree_g1 --no_visualize --num_threads 1 --start_row 0  --end_row 5
+python scripts/smplx_to_robot_batch_allscale.py --csv_file ../data/locomotion/manifest_raw.csv --batch_save_path ../data/locomotion/robot/ik_based_scale/pkl/   --robot unitree_g1 --no_visualize --num_threads 35 --start_row 1000
 tmux attach -t smplx_robot #重新打开这个会话
 tmux kill-session -t smplx_robot
 tmux ls
 
 
 
-重新修改scale方式：：：
+---重新修改scale方式：：：
 先开一个tmux:
 tmux new -s smplx_robot
 bash

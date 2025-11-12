@@ -126,7 +126,7 @@ def get_human_height_from_reference(reference_npz_path):
             # If betas is 2D, take the first row
             betas = betas[0] if len(betas.shape) == 2 else betas
         
-        print(f"in reference data, human_height: {human_height}, betas: {betas}")
+        # print(f"in reference data, human_height: {human_height}, betas: {betas}")
         
         return float(human_height), betas.astype(np.float32)
 

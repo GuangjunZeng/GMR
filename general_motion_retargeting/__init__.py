@@ -10,6 +10,7 @@ from .params import (
     REVERSE_IK_CONFIG_DICT,
 )
 from .motion_retarget import GeneralMotionRetargeting
+from .motion_retarget_allscale import GeneralMotionRetargeting_allscale
 from .reverse_motion_retarget import RobotToSMPLXRetargeting
 from .robot_motion_viewer import RobotMotionViewer
 from .data_loader import load_robot_motion
