@@ -283,7 +283,7 @@ def process_batch_from_csv(csv_file, batch_save_path, robot, SMPLX_FOLDER, no_vi
     #处理单个npz文件会放入单个进程，而该进程里调用的数值库可能会自己“开多线程”加速单个运算
     if use_multithreading:
         # 计算在 CPU 使用上限的可用的最大进程数
-        cpu_limit_percent = 67
+        cpu_limit_percent = 5 ##!！！！
         allowed_cores, visible_cores = cap_cpu_affinity_by_percent(cpu_limit_percent)
         cap_workers = allowed_cores #cap_workers本质是线程数
         #但是user_workers本质是进程数
