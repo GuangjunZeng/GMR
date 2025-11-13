@@ -7,7 +7,10 @@ import joblib
 import xml.etree.ElementTree as ET
 import glob
 
-# eg usage: python scripts/29dof_pkl_to_npz_multiple.py --pkl-dir /home/retarget/workbench/data/locomotion/robot/ik_based/pkl --output-dir /home/retarget/workbench/data/locomotion/robot/ik_based/npz --include-base
+# eg usage: python scripts/29dof_pkl_to_npz_multiple.py --pkl-dir /home/retarget_proj/workbench/data/locomotion/robot/ik_based/pkl --output-dir /home/retarget_proj/workbench/data/locomotion/robot/ik_based/npz --include-base
+
+
+#allscale:  python scripts/29dof_pkl_to_npz_multiple.py --pkl-dir /home/retarget_proj/workbench/data/locomotion/robot/ik_based_scale/pkl --output-dir /home/retarget_proj/workbench/data/locomotion/robot/ik_based_scale/npz --include-base
 
 DESIRED_ORDER = [
     "left_hip_pitch_joint",
