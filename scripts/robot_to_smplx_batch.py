@@ -291,6 +291,7 @@ def process_single_npz_file(npz_file_path, output_path, robot, SMPLX_FOLDER, gen
         
         # high priority: doing retargeting frame by frame
         smplx_data_frames = []
+        smplx_qpos_list = []
         i = 0
         num_frames = root_pos.shape[0]  #rows
         while True:
@@ -322,6 +323,7 @@ def process_single_npz_file(npz_file_path, output_path, robot, SMPLX_FOLDER, gen
             #warning: ik table中g1 body的名称和lafan格式中的不完全一样？ 输出文件没有body name,应该不影响
             retarget.retarget(robot_frame_data) 
             #save the current frame's SMPLX joint pos and rot
+            smplx_qpos_list.append(retarget.configuration.data.qpos.copy())
             smplx_data_frames.append(retarget.extract_smplx_frame())
             #notice: smplx_data_frames includes dicts {body_name: {"pos": pos, "rot": quat}}
             
@@ -343,8 +345,11 @@ def process_single_npz_file(npz_file_path, output_path, robot, SMPLX_FOLDER, gen
 
         #smpl_trans 和 pelvis_trans之间的关系可以看000000.npz文件生成的代码
 
-        print(f"finally, pelvis_trans (last 7 frames): {smplx_params['pelvis_trans'][-7:]}")
-        print(f"finally, pelvis_quat_xyzw (last 7 frames): {smplx_params['pelvis_quat_xyzw'][-7:]}")
+        # print(f"finally, pelvis_trans (last 7 frames): {smplx_params['pelvis_trans'][-7:]}")
+        # print(f"finally, pelvis_quat_xyzw (last 7 frames): {smplx_params['pelvis_quat_xyzw'][-7:]}")
+        
+        #warning: self.configuration.data.qpos得到的是pelvis还是smpl的trans和quat?
+        #warning： 可以试试用smplx_output = body_model进行前向运动学计算，看结果是否一致???
 
         #warning: 最后输出，wxyz or xyzw?
    
@@ -354,7 +359,9 @@ def process_single_npz_file(npz_file_path, output_path, robot, SMPLX_FOLDER, gen
             betas=smplx_params["betas"],
             pose_body=smplx_params["pose_body"], 
             pose_hand=smplx_params["pose_hand"],
-            pelvis_trans=smplx_params["pelvis_trans"],
+            smpl_trans=smplx_params["pelvis_trans"],         #?后面再修改
+            smpl_quat_xyzw=smplx_params["pelvis_quat_xyzw"], #? 后面再修改
+            pelvis_trans=smplx_params["pelvis_trans"], 
             pelvis_quat_xyzw=smplx_params["pelvis_quat_xyzw"],
         )
         
