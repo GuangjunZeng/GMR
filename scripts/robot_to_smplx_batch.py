@@ -14,8 +14,15 @@ from general_motion_retargeting.params import REVERSE_IK_CONFIG_DICT
 from general_motion_retargeting.utils.smpl import get_human_height_from_reference
 
 
+
 ## python scripts/robot_to_smplx_batch.py --csv_file ../server3_data/locomotion/manifest_test.csv --batch_save_path ../server3_data/locomotion/human/ik_based/npz/   --no_visualize 
 
+#tmux new -s robot_smplx
+#bash
+#conda init bash
+#source ~/.bashrc 
+#conda activate gmr
+#python scripts/robot_to_smplx_batch.py 
 
 # 可选的 CSV 行范围（由命令行参数设置）
 START_ROW = 0     # 0-based inclusive（默认第一行数据，已跳过header）
@@ -189,7 +196,7 @@ def process_batch_from_csv(csv_file, batch_save_path, robot, SMPLX_FOLDER, gende
     
     if use_multithreading:
         # 计算在 CPU 使用上限的可用的最大进程数
-        cpu_limit_percent = 60
+        cpu_limit_percent = 75
         allowed_cores, visible_cores = cap_cpu_affinity_by_percent(cpu_limit_percent)
         cap_workers = allowed_cores
         user_workers = num_threads if num_threads is not None else cap_workers
@@ -332,25 +339,22 @@ def process_single_npz_file(npz_file_path, output_path, robot, SMPLX_FOLDER, gen
        
         # Use betas from reference npz file (already loaded as reference_betas)
         betas_array = reference_betas.astype(np.float64)
-        smplx_params = retarget.frames_to_smplx_parameters(smplx_data_frames, betas=betas_array)
+        # smplx_params = retarget.frames_to_smplx_parameters(smplx_data_frames, betas=betas_array, qpos_list=smplx_qpos_list)
+        smplx_params = retarget.frames_to_smplx_parameters_smplxmodel(smplx_data_frames, betas=betas_array, qpos_list=smplx_qpos_list)
         #? body name的顺序: self.configuration.data能不能提供顺序？ self.configuration传入的是xml配置文件，从中设置顺序？
         #warning: body name/joint_name顺序需要的是标准的SMPLX模型中的顺序(from smplx.joint_names import JOINT_NAMES). 在extract_smplx_frame()中是按照JOINT_NAMES的顺序提取的.
         
         #gender, betas, pose_body(N, 63), pose_hand(N, 90), smpl_trans(N, 3), smpl_quat_xyzw(N, 4), pelvis_trans(N, 3), pelvis_quat_xyzw(N, 4)
         #joints_local(N, 55, 3) 暂时不写入输出文件
         #qpos的body rot是欧拉角表达形式，而pose_body和pose_hand需要的是三维向量的表达形式
+        
 
-        #notice: pose_body 是local rotation (derived from manual_downsample_smplx_data())
-        #notice: pose_hand 是local rotation, set all zeros.
-
-        #smpl_trans 和 pelvis_trans之间的关系可以看000000.npz文件生成的代码
 
         # print(f"finally, pelvis_trans (last 7 frames): {smplx_params['pelvis_trans'][-7:]}")
         # print(f"finally, pelvis_quat_xyzw (last 7 frames): {smplx_params['pelvis_quat_xyzw'][-7:]}")
         
         #warning: self.configuration.data.qpos得到的是pelvis还是smpl的trans和quat?
         #warning： 可以试试用smplx_output = body_model进行前向运动学计算，看结果是否一致???
-
         #warning: 最后输出，wxyz or xyzw?
    
         np.savez(
@@ -359,11 +363,13 @@ def process_single_npz_file(npz_file_path, output_path, robot, SMPLX_FOLDER, gen
             betas=smplx_params["betas"],
             pose_body=smplx_params["pose_body"], 
             pose_hand=smplx_params["pose_hand"],
-            smpl_trans=smplx_params["pelvis_trans"],         #?后面再修改
-            smpl_quat_xyzw=smplx_params["pelvis_quat_xyzw"], #? 后面再修改
+            smpl_trans=smplx_params["smpl_trans"],         
+            smpl_quat_xyzw=smplx_params["smpl_quat_xyzw"], 
             pelvis_trans=smplx_params["pelvis_trans"], 
             pelvis_quat_xyzw=smplx_params["pelvis_quat_xyzw"],
         )
+        #notice: pose_body 是local rotation (derived from manual_downsample_smplx_data())
+        #notice: pose_hand 是local rotation, set all zeros.
         
         return True
         
@@ -484,8 +490,8 @@ if __name__ == "__main__":
     parser.add_argument(
         "--num_threads",
         type=int,
-        default=3,
-        help="Number of threads to use (default: 10).",
+        default=12,
+        help="Number of threads to use (default: 12).",
     )
 
     args = parser.parse_args()

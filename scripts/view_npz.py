@@ -8,6 +8,9 @@ import os
 
 # python scripts/view_npz.py  assets/body_models/smplx/SMPLX_MALE.npz
 # python scripts/view_npz.py  ../server3_data/locomotion/reference/000005.npz
+# python scripts/view_npz.py  ../server3_data/locomotion/reference/000135.npz
+# python scripts/view_npz.py  ../server3_data/locomotion/reference/006119.npz
+# python scripts/view_npz.py  ../server3_data/locomotion/reference/009177.npz
 ## 显示第一帧完整数据: python scripts/view_npz.py  ../server3_data/locomotion/reference/000005.npz --first-frame
 
 # 文件包含的键: ['gender', 'betas', 'pose_body', 'pose_hand', 'smpl_trans', 'smpl_quat_xyzw', 'pelvis_trans', 'pelvis_quat_xyzw', 'joints_local', 'fps']

@@ -11,6 +11,9 @@ import smplx
 import torch
 from scipy.spatial.transform import Rotation as R
 from smplx.joint_names import JOINT_NAMES
+import viser
+import viser.transforms as tf
+from viser.extras import ViserUrdf
 
 from .params import REVERSE_IK_CONFIG_DICT, ROBOT_XML_DICT, SMPLX_HUMANOID_XML
 from .robot import BodyPose, RobotKinematics
@@ -144,10 +147,10 @@ class RobotToSMPLXRetargeting:
                 self.robot_scale_table[key] = self.robot_scale_table[key] * ratio
             
             # 打印完整的 robot_scale_table 以查看精度
-            print("\n=== Updated robot_scale_table ===")
-            for key, value in self.robot_scale_table.items():
-                print(f"  {key}: {value:.15f}")  # 显示15位小数
-            print("==================================\n")
+            # print("\n=== Updated robot_scale_table ===")
+            # for key, value in self.robot_scale_table.items():
+            #     print(f"  {key}: {value:.15f}")  # 显示15位小数
+            # print("==================================\n")
         else:
             ratio = 1
 
@@ -283,6 +286,7 @@ class RobotToSMPLXRetargeting:
         self,
         smplx_frames: List[Dict[str, Dict[str, np.ndarray]]],  #notice: smplx_frames includes dicts {body_name: {"pos": pos, "rot": quat}}
         betas: Optional[np.ndarray],
+        qpos_list: List[np.ndarray],
     ) -> Dict[str, np.ndarray]:
         betas_array = self.prepare_betas(betas)
         pelvis_trans_list: List[np.ndarray] = []
@@ -293,23 +297,39 @@ class RobotToSMPLXRetargeting:
 
         pelvis_joint_offset = self.compute_pelvis_joint_offset(betas_array)
 
-        for frame_joints in smplx_frames: #iterate through the joints data for each frame
+        # for frame_joints in smplx_frames: #iterate through the joints data for each frame
+        for frame_joints, qpos in zip(smplx_frames, qpos_list):
             if self.smplx_root_name in frame_joints:
                 pelvis_pos = frame_joints[self.smplx_root_name]["pos"]
                 pelvis_rot = frame_joints[self.smplx_root_name]["rot"]  #wxyz format: 关节的绝对旋转
                 pelvis_quat_xyzw = pelvis_rot[[1, 2, 3, 0]]
-
                 pelvis_trans_list.append(pelvis_pos)
                 pelvis_quat_xyzw_list.append(pelvis_quat_xyzw)
 
-                pelvis_rot_mat = R.from_quat(pelvis_quat_xyzw).as_matrix()
-                smpl_rot_mat = pelvis_rot_mat @ self._PELVIS_TO_ROOT_ROT
-                smpl_quat_xyzw = R.from_matrix(smpl_rot_mat).as_quat()
 
-                smpl_trans = pelvis_pos - smpl_rot_mat @ pelvis_joint_offset
+                # R_adjust_mat =  self._PELVIS_TO_ROOT_ROT
+                # R_adjust_mat_inv = R_adjust_mat.T
+                # root_rotations_mat = pelvis_rot_mat @ R_adjust_mat_inv
+                # root_rotations = tf.SO3.from_matrix(root_rotations_mat)
+                # root_quat_xyzw = root_rotations.as_quaternion_xyzw()
+                # root_quat_wxyz = np.array([root_quat_xyzw[3], root_quat_xyzw[0], root_quat_xyzw[1], root_quat_xyzw[2]])
 
+
+                # pelvis_rot_mat = R.from_quat(pelvis_quat_xyzw).as_matrix()
+                # smpl_rot_mat = pelvis_rot_mat @ self._PELVIS_TO_ROOT_ROT
+                # smpl_quat_xyzw = R.from_matrix(smpl_rot_mat).as_quat()
+                # smpl_trans = pelvis_pos - smpl_rot_mat @ pelvis_joint_offset
+                smpl_quat_wxyz = np.asarray(qpos[3:7], dtype=np.float64) 
+                smpl_trans = np.asarray(qpos[:3], dtype=np.float64)
+                smpl_trans[1] += 0.34 #?
+                smpl_quat_xyzw = np.array(
+                    [smpl_quat_wxyz[1], smpl_quat_wxyz[2], smpl_quat_wxyz[3], smpl_quat_wxyz[0]],
+                    dtype=np.float64,
+                )
                 smpl_trans_list.append(smpl_trans.astype(np.float64))
                 smpl_quat_xyzw_list.append(smpl_quat_xyzw.astype(np.float64))
+
+                
             else:
                 pass
                 # trans_list.append(np.zeros(3, dtype=np.float64))
@@ -357,19 +377,36 @@ class RobotToSMPLXRetargeting:
         body_pose_list: List[np.ndarray] = []
         root_quat_xyzw_list: List[np.ndarray] = []
         transl_list: List[np.ndarray] = []
+        pelvis_trans_list: List[np.ndarray] = []
+        pelvis_quat_xyzw_list: List[np.ndarray] = []
+        pelvis_joint_offset = self.compute_pelvis_joint_offset(betas_array).astype(np.float64)  # warning:
+        print(f"pelvis_joint_offset: {pelvis_joint_offset}") #[ 0.00084991 -0.37823778  0.00606466]  (000005.npz)
 
         for frame_joints, qpos in zip(smplx_frames, qpos_list):
             body_pose_list.append(self.compute_local_rotations(frame_joints))
 
-            root_quat_wxyz = np.asarray(qpos[:4], dtype=np.float64) 
-            root_trans = np.asarray(qpos[4:7], dtype=np.float64)
-
-            root_quat_xyzw = np.array(
-                [root_quat_wxyz[1], root_quat_wxyz[2], root_quat_wxyz[3], root_quat_wxyz[0]],
+            pelvis_trans = np.asarray(qpos[:3], dtype=np.float64)
+            pelvis_quat_wxyz = np.asarray(qpos[3:7], dtype=np.float64)
+            pelvis_quat_xyzw = np.array(
+                [pelvis_quat_wxyz[1], pelvis_quat_wxyz[2], pelvis_quat_wxyz[3], pelvis_quat_wxyz[0]],
                 dtype=np.float64,
             )
+            pelvis_trans_list.append(pelvis_trans)
+            pelvis_quat_xyzw_list.append(pelvis_quat_xyzw)
 
-            root_quat_xyzw_list.append(root_quat_xyzw)
+            pelvis_rot_mat = R.from_quat(pelvis_quat_xyzw).as_matrix()
+            # root_rot_mat = pelvis_rot_mat @ self._PELVIS_TO_ROOT_ROT # 这一步是多余的，因为这一步在从amass raw data生成reference data才需要。smplx to robot 或者反过来时已经对齐了。
+            root_rot_mat = pelvis_rot_mat.copy()
+            root_rot = tf.SO3.from_matrix(root_rot_mat)
+            root_quat_xyzw = root_rot.as_quaternion_xyzw()
+            # root_trans = pelvis_trans - root_rot_mat @ pelvis_joint_offset  
+            root_trans = pelvis_trans - pelvis_joint_offset  
+            print(f"root_trans: {root_trans}")
+            print(f"pelvis_trans: {pelvis_trans}")
+            print(f"root_quat_xyzw: {root_quat_xyzw}")
+            print(f"pelvis_quat_xyzw: {pelvis_quat_xyzw}")
+
+            root_quat_xyzw_list.append(root_quat_xyzw)  #warning: 这个计算怎么验证就是xyzw顺序?
             transl_list.append(root_trans)
 
         pose_body = np.asarray(body_pose_list, dtype=np.float64)
@@ -377,68 +414,67 @@ class RobotToSMPLXRetargeting:
         root_quat_xyzw = np.asarray(root_quat_xyzw_list, dtype=np.float64)
         pose_hand = np.zeros((num_frames, 90), dtype=np.float64)
 
-        root_rotations = R.from_quat(root_quat_xyzw)
-        global_orient = root_rotations.as_rotvec()
+        # root_rotations = R.from_quat(root_quat_xyzw)
+        # global_orient = root_rotations.as_rotvec()
 
-        device = torch.device("cpu")
-        try:
-            device = next(self.smplx_model.parameters()).device
-        except StopIteration:
-            pass
+        # device = torch.device("cpu")
+        # try:
+        #     device = next(self.smplx_model.parameters()).device
+        # except StopIteration:
+        #     pass
 
-        betas_tensor = torch.from_numpy(betas_array.astype(np.float32)).unsqueeze(0).to(device)
-        betas_batched = betas_tensor.repeat(num_frames, 1)
-        global_orient_tensor = torch.from_numpy(global_orient.astype(np.float32)).to(device)
-        body_pose_tensor = torch.from_numpy(pose_body.astype(np.float32)).to(device)
-        transl_tensor = torch.from_numpy(smpl_trans.astype(np.float32)).to(device)
-        left_hand_tensor = torch.zeros((num_frames, 45), dtype=torch.float32, device=device)
-        right_hand_tensor = torch.zeros((num_frames, 45), dtype=torch.float32, device=device)
-        jaw_tensor = torch.zeros((num_frames, 3), dtype=torch.float32, device=device)
-        eye_tensor = torch.zeros((num_frames, 3), dtype=torch.float32, device=device)
-        num_expression = getattr(self.smplx_model, "num_expression_coeffs", 10)
-        expression_tensor = torch.zeros((num_frames, num_expression), dtype=torch.float32, device=device)
+        # betas_tensor = torch.from_numpy(betas_array.astype(np.float32)).unsqueeze(0).to(device)
+        # betas_batched = betas_tensor.repeat(num_frames, 1)
+        # global_orient_tensor = torch.from_numpy(global_orient.astype(np.float32)).to(device)
+        # body_pose_tensor = torch.from_numpy(pose_body.astype(np.float32)).to(device)
+        # transl_tensor = torch.from_numpy(smpl_trans.astype(np.float32)).to(device)
+        # left_hand_tensor = torch.zeros((num_frames, 45), dtype=torch.float32, device=device)
+        # right_hand_tensor = torch.zeros((num_frames, 45), dtype=torch.float32, device=device)
+        # jaw_tensor = torch.zeros((num_frames, 3), dtype=torch.float32, device=device)
+        # eye_tensor = torch.zeros((num_frames, 3), dtype=torch.float32, device=device)
+        # num_expression = getattr(self.smplx_model, "num_expression_coeffs", 10)
+        # expression_tensor = torch.zeros((num_frames, num_expression), dtype=torch.float32, device=device)
 
-        with torch.no_grad():
-            smplx_output = self.smplx_model(
-                betas=betas_batched,
-                global_orient=global_orient_tensor,
-                body_pose=body_pose_tensor,
-                transl=transl_tensor,
-                expression=expression_tensor,
-                left_hand_pose=left_hand_tensor,
-                right_hand_pose=right_hand_tensor,
-                jaw_pose=jaw_tensor,
-                leye_pose=eye_tensor,
-                reye_pose=eye_tensor,
-                return_verts=False,
-                return_full_pose=True,
-            )
+        # with torch.no_grad():
+        #     smplx_output = self.smplx_model(
+        #         betas=betas_batched,
+        #         global_orient=global_orient_tensor,
+        #         body_pose=body_pose_tensor,
+        #         transl=transl_tensor,
+        #         expression=expression_tensor,
+        #         left_hand_pose=left_hand_tensor,
+        #         right_hand_pose=right_hand_tensor,
+        #         jaw_pose=jaw_tensor,
+        #         leye_pose=eye_tensor,
+        #         reye_pose=eye_tensor,
+        #         return_verts=False,
+        #         return_full_pose=True,
+        #     )
 
-        joints_all = smplx_output.joints.detach().cpu().numpy().astype(np.float64)
-        global_orient_all = smplx_output.global_orient.detach().cpu().numpy().astype(np.float64)
-        pelvis_trans = joints_all[:, 0].copy()
+        # joints_all = smplx_output.joints.detach().cpu().numpy().astype(np.float64)
+        # global_orient_all = smplx_output.global_orient.detach().cpu().numpy().astype(np.float64)
+        # pelvis_trans = joints_all[:, 0].copy()
 
-        root_rotations_out = R.from_rotvec(global_orient_all)
-        smpl_quat_xyzw = root_rotations_out.as_quat()
-        root_rotations_mat = root_rotations_out.as_matrix()
+        # root_rotations_out = R.from_rotvec(global_orient_all)
+        # smpl_quat_xyzw = root_rotations_out.as_quat()
+        # root_rotations_mat = root_rotations_out.as_matrix()
 
-        pelvis_rot_mat = np.einsum("nij,jk->nik", root_rotations_mat, self._ROOT_TO_PELVIS_ROT)
-        pelvis_quat_xyzw = R.from_matrix(pelvis_rot_mat).as_quat()
+        # pelvis_rot_mat = np.einsum("nij,jk->nik", root_rotations_mat, self._ROOT_TO_PELVIS_ROT)
+        # pelvis_quat_xyzw = R.from_matrix(pelvis_rot_mat).as_quat()
 
-        joints_body = joints_all[:, :55, :].copy()
-        joints_centered = joints_body - pelvis_trans[:, np.newaxis, :]
-        pelvis_rot_mat_T = pelvis_rot_mat.transpose(0, 2, 1)
-        joints_local = np.einsum("nij,nkj->nki", pelvis_rot_mat_T, joints_centered)
+        # joints_body = joints_all[:, :55, :].copy()
+        # joints_centered = joints_body - pelvis_trans[:, np.newaxis, :]
+        # pelvis_rot_mat_T = pelvis_rot_mat.transpose(0, 2, 1)
+        # joints_local = np.einsum("nij,nkj->nki", pelvis_rot_mat_T, joints_centered)
 
         return {
             "betas": betas_array,
             "pose_body": pose_body,
             "pose_hand": pose_hand,
             "smpl_trans": smpl_trans,
-            "smpl_quat_xyzw": smpl_quat_xyzw.astype(np.float64),
-            "pelvis_trans": pelvis_trans,
-            "pelvis_quat_xyzw": pelvis_quat_xyzw.astype(np.float64),
-            "joints_local": joints_local.astype(np.float64),
+            "smpl_quat_xyzw": root_quat_xyzw.astype(np.float64),
+            "pelvis_trans": np.asarray(pelvis_trans_list, dtype=np.float64),
+            "pelvis_quat_xyzw": np.asarray(pelvis_quat_xyzw_list, dtype=np.float64),
         }
 
     # ------------------------------------------------------------------
@@ -465,7 +501,7 @@ class RobotToSMPLXRetargeting:
         check2_left_shoulder_yaw_link = robot_data['left_shoulder_yaw_link']
         left_shoulder_pos = np.asarray(check2_left_shoulder_yaw_link.pos, dtype=np.float64).reshape(-1)
         left_shoulder_quat = np.asarray(check2_left_shoulder_yaw_link.rot, dtype=np.float64).reshape(-1)
-        print("check2_left_shoulder_yaw_link: " + ", ".join(f"{value:.15f}" for value in np.concatenate([left_shoulder_pos, left_shoulder_quat])))
+        # print("check2_left_shoulder_yaw_link: " + ", ".join(f"{value:.15f}" for value in np.concatenate([left_shoulder_pos, left_shoulder_quat])))
         # 000005.npz last frame:  BodyPose(pos=array([-0.47435894,  0.26292525,  1.42337835]), rot=array([ 0.52543509, -0.26132338,  0.66067818,  0.4681158 ]))
         # [ -0.482392021088843, 0.259669719500133, 1.395207188492965], [0.525435089028519, -0.261323381639568, 0.660678180602081, 0.468115796681096]
 
@@ -634,7 +670,7 @@ class RobotToSMPLXRetargeting:
                 pass
             if robot_body == "left_shoulder_yaw_link":
                 before_check2_left_shoulder_yaw_link = offset_data['left_shoulder_yaw_link']
-                print(f"before_check2_left_shoulder_yaw_link: {before_check2_left_shoulder_yaw_link}")
+                # print(f"before_check2_left_shoulder_yaw_link: {before_check2_left_shoulder_yaw_link}")
                 pass
             
             # apply rotation offset first
@@ -766,6 +802,7 @@ class RobotToSMPLXRetargeting:
             )
 
         pelvis_offset = output.joints[0, 0].detach().cpu().numpy().astype(np.float64)
+        #warning: 我还可以从这里面去计算pelvis_quat_offset去进行一些验证吗？
         return pelvis_offset
 
     # high priority: compute the local rotation of each body joint
@@ -790,11 +827,11 @@ class RobotToSMPLXRetargeting:
             if joint_name not in global_rots or parent_name not in global_rots:
                 print(f"joint_name: {joint_name} or parent_name: {parent_name} not in global_rots")
                 continue
-            parent_R = global_rots[parent_name]
+            parent_R = global_rots[parent_name] 
             joint_R = global_rots[joint_name]
             local_R = parent_R.inv() * joint_R 
             body_pose[(i - 1) * 3 : (i - 1) * 3 + 3] = local_R.as_rotvec()
-            #body_pose doesn't include pelvis!!!
+            #notice: body_pose doesn't include pelvis!!!
 
         return body_pose
 

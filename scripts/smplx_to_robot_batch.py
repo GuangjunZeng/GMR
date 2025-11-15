@@ -117,6 +117,7 @@ def manual_downsample_smplx_data(smplx_data, body_model, smplx_output, down_samp
         
         # Compare with ground truth
         ground_truth_tensor = downsampled_full_body_pose[test_frame_idx][1:22]  # Skip pelvis (index 0)
+        # notice： body-pose确实不包含pelvis
         if hasattr(ground_truth_tensor, "detach"):
             ground_truth = ground_truth_tensor.detach().cpu().numpy().reshape(-1)
         else:
